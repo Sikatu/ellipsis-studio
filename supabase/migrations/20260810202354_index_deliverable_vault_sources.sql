@@ -1,0 +1,2 @@
+create index strategy_report_files_source_strategy_idx
+  on public.strategy_report_files (source_strategy_version_id);
