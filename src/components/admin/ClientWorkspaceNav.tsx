@@ -36,6 +36,10 @@ const navigation = [
     label: "Creative",
   },
   {
+    id: "visual-system",
+    label: "Visual",
+  },
+  {
     id: "report-production",
     label: "Report",
   },
