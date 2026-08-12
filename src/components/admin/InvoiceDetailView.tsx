@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import InvoiceDeliveryPanel from "@/components/admin/InvoiceDeliveryPanel";
+import InvoiceFollowUpPanel from "@/components/admin/InvoiceFollowUpPanel";
 
 type InvoiceStatus =
   | "draft"
@@ -864,6 +865,17 @@ export default function InvoiceDetailView({
       )}
 
       <InvoiceDeliveryPanel
+        invoiceId={
+          invoice.id
+        }
+        invoiceNumber={
+          invoice.invoice_number
+        }
+        invoiceStatus={
+          invoice.status
+        }
+      />
+      <InvoiceFollowUpPanel
         invoiceId={
           invoice.id
         }
