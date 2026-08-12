@@ -12,6 +12,7 @@ import BrandStrategySynthesis from "@/components/admin/BrandStrategySynthesis";
 import BrandStrategyReviewPanel from "@/components/admin/BrandStrategyReviewPanel";
 import BrandAIStrategist from "@/components/admin/BrandAIStrategist";
 import BrandFinalStrategyWorkspace from "@/components/admin/BrandFinalStrategyWorkspace";
+import BrandCreativeDirectionWorkspace from "@/components/admin/BrandCreativeDirectionWorkspace";
 import BrandReportProductionWorkspace from "@/components/admin/BrandReportProductionWorkspace";
 import ClientWorkspaceNav from "@/components/admin/ClientWorkspaceNav";
 import ClientDetailRealtimeRefresh from "@/components/admin/ClientDetailRealtimeRefresh";
@@ -604,6 +605,11 @@ export default async function ClientIntelligencePage({
         )}
         {project && (
           <BrandFinalStrategyWorkspace
+            projectId={project.id}
+          />
+        )}
+        {project && (
+          <BrandCreativeDirectionWorkspace
             projectId={project.id}
           />
         )}

@@ -32,6 +32,10 @@ const navigation = [
     label: "Final",
   },
   {
+    id: "creative-direction",
+    label: "Creative",
+  },
+  {
     id: "report-production",
     label: "Report",
   },

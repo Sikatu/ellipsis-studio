@@ -1475,11 +1475,11 @@ export default function BrandFinalStrategyWorkspace({
 
           {latestApproved ? (
             <Link
-              href="#report-production"
+              href="#creative-direction"
               target="_blank"
               className="shrink-0 rounded-xl bg-[#f5f0e6] px-5 py-3 text-xs font-semibold text-[#11110f] transition hover:bg-white"
             >
-              Open report production
+              Open creative direction
             </Link>
           ) : (
             <span className="shrink-0 rounded-full border border-white/10 px-4 py-2 text-[10px] font-medium text-white/30">
