@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 
+import InvoiceDeliveryPanel from "@/components/admin/InvoiceDeliveryPanel";
+
 type InvoiceStatus =
   | "draft"
   | "issued"
@@ -860,6 +862,18 @@ export default function InvoiceDetailView({
           {message}
         </div>
       )}
+
+      <InvoiceDeliveryPanel
+        invoiceId={
+          invoice.id
+        }
+        invoiceNumber={
+          invoice.invoice_number
+        }
+        invoiceStatus={
+          invoice.status
+        }
+      />
 
       <div className="mt-10 grid gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">

@@ -6,6 +6,10 @@ import {
   createClient,
 } from "@/lib/supabase/server";
 
+import {
+  recordInvoiceDeliveryEvent,
+} from "@/lib/server/invoice-delivery";
+
 export const dynamic =
   "force-dynamic";
 
@@ -261,6 +265,114 @@ export async function POST(
     );
   }
 
+  let deliveryRevoked =
+    false;
+
+  const {
+    data:
+      activeDelivery,
+    error:
+      deliveryReadError,
+  } =
+    await admin
+      .from(
+        "invoice_delivery_access",
+      )
+      .select(
+        "id,token_version,status",
+      )
+      .eq(
+        "invoice_id",
+        invoiceId,
+      )
+      .eq(
+        "created_by",
+        user.id,
+      )
+      .eq(
+        "status",
+        "active",
+      )
+      .maybeSingle();
+
+  if (
+    deliveryReadError
+  ) {
+    console.error(
+      "Invoice void delivery lookup failed:",
+      deliveryReadError,
+    );
+  } else if (
+    activeDelivery
+  ) {
+    const {
+      data:
+        revokedDelivery,
+      error:
+        deliveryRevokeError,
+    } =
+      await admin
+        .from(
+          "invoice_delivery_access",
+        )
+        .update({
+          status:
+            "revoked",
+          revoked_by:
+            user.id,
+          revoked_at:
+            new Date()
+              .toISOString(),
+        })
+        .eq(
+          "id",
+          activeDelivery.id,
+        )
+        .eq(
+          "created_by",
+          user.id,
+        )
+        .eq(
+          "status",
+          "active",
+        )
+        .select(
+          "id,token_version,status",
+        )
+        .maybeSingle();
+
+    if (
+      deliveryRevokeError ||
+      !revokedDelivery
+    ) {
+      console.error(
+        "Invoice void delivery revoke failed:",
+        deliveryRevokeError,
+      );
+    } else {
+      deliveryRevoked =
+        true;
+
+      await recordInvoiceDeliveryEvent({
+        invoiceId,
+        accessId:
+          revokedDelivery.id,
+        eventType:
+          "access_revoked",
+        actorType:
+          "admin",
+        actorAdminId:
+          user.id,
+        tokenVersion:
+          revokedDelivery.token_version,
+        metadata: {
+          reason:
+            "invoice_voided",
+        },
+      });
+    }
+  }
+
   return Response.json(
     {
       invoice,
@@ -270,6 +382,7 @@ export async function POST(
         Boolean(
           current.final_pdf_created_at,
         ),
+      deliveryRevoked,
     },
     {
       headers: {
