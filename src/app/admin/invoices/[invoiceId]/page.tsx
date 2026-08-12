@@ -2,14 +2,14 @@ import {
   redirect,
 } from "next/navigation";
 
+import InvoiceDetailView from "@/components/admin/InvoiceDetailView";
 import StudioNav from "@/components/admin/StudioNav";
-import InvoiceManagementDashboard from "@/components/admin/InvoiceManagementDashboard";
 import {
   createClient,
 } from "@/lib/supabase/server";
 
 export const metadata = {
-  title: "Invoices",
+  title: "Invoice Detail",
 };
 
 async function requireAdmin() {
@@ -52,29 +52,28 @@ async function requireAdmin() {
   }
 }
 
-export default async function InvoicesPage() {
+export default async function InvoiceDetailPage({
+  params,
+}: {
+  params: Promise<{
+    invoiceId: string;
+  }>;
+}) {
   await requireAdmin();
+
+  const {
+    invoiceId,
+  } =
+    await params;
 
   return (
     <main className="min-h-screen bg-[#11110f] text-[#f4f0e8]">
       <StudioNav active="invoices" />
 
       <div className="mx-auto w-full max-w-7xl px-6 pb-20 pt-12 sm:px-8 lg:px-10 lg:pt-16">
-        <section className="max-w-3xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c8ad84]/55">
-            ELLIPSIS Studio / Invoices
-          </p>
-
-          <h1 className="mt-5 text-4xl font-medium tracking-[-0.055em] text-[#f4f0e8] sm:text-5xl">
-            Know what is open, paid, and next.
-          </h1>
-
-          <p className="mt-5 max-w-2xl text-sm leading-7 text-white/38 sm:text-[15px]">
-            Your invoice workspace now separates creation from management. Search every invoice, see outstanding balances by currency, and move issued work through payment without losing the immutable final document.
-          </p>
-        </section>
-
-        <InvoiceManagementDashboard />
+        <InvoiceDetailView
+          invoiceId={invoiceId}
+        />
       </div>
     </main>
   );
