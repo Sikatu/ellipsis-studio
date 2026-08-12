@@ -58,6 +58,10 @@ type InvoiceSummary = {
   currency: InvoiceCurrency;
   subtotal_cents: number;
   total_cents: number;
+  issued_at: string | null;
+  paid_at: string | null;
+  voided_at: string | null;
+  final_pdf_created_at: string | null;
   created_at: string;
 };
 
@@ -341,6 +345,14 @@ export default function InvoiceBuilder() {
       InvoiceSummary |
       null
     >(
+      null,
+    );
+
+  const [
+    busyInvoiceAction,
+    setBusyInvoiceAction,
+  ] =
+    useState<string | null>(
       null,
     );
 
@@ -905,6 +917,162 @@ export default function InvoiceBuilder() {
     } finally {
       setSaving(
         false,
+      );
+    }
+  }
+
+  async function issueInvoice(
+    invoice: InvoiceSummary,
+  ) {
+    if (
+      invoice.status !==
+        "draft"
+    ) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `Issue ${invoice.invoice_number}? Once issued, its billing details, work items, totals, and final PDF are locked.`,
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const actionKey =
+      `issue:${invoice.id}`;
+
+    setBusyInvoiceAction(
+      actionKey,
+    );
+    setMessage("");
+
+    try {
+      const response =
+        await fetch(
+          `/api/admin/invoices/${invoice.id}/issue`,
+          {
+            method:
+              "POST",
+          },
+        );
+
+      const payload =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ??
+            "Could not issue invoice.",
+        );
+      }
+
+      const nextInvoice =
+        payload.invoice as
+          InvoiceSummary;
+
+      if (
+        createdInvoice?.id ===
+        invoice.id
+      ) {
+        setCreatedInvoice(
+          nextInvoice,
+        );
+      }
+
+      setMessage(
+        `${invoice.invoice_number} issued. The final PDF is now locked.`,
+      );
+
+      await refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not issue invoice.",
+      );
+    } finally {
+      setBusyInvoiceAction(
+        null,
+      );
+    }
+  }
+
+  async function markInvoicePaid(
+    invoice: InvoiceSummary,
+  ) {
+    if (
+      invoice.status !==
+        "issued"
+    ) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `Mark ${invoice.invoice_number} as paid?`,
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const actionKey =
+      `paid:${invoice.id}`;
+
+    setBusyInvoiceAction(
+      actionKey,
+    );
+    setMessage("");
+
+    try {
+      const response =
+        await fetch(
+          `/api/admin/invoices/${invoice.id}/paid`,
+          {
+            method:
+              "POST",
+          },
+        );
+
+      const payload =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ??
+            "Could not mark invoice paid.",
+        );
+      }
+
+      const nextInvoice =
+        payload.invoice as
+          InvoiceSummary;
+
+      if (
+        createdInvoice?.id ===
+        invoice.id
+      ) {
+        setCreatedInvoice(
+          nextInvoice,
+        );
+      }
+
+      setMessage(
+        `${invoice.invoice_number} marked as paid.`,
+      );
+
+      await refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not mark invoice paid.",
+      );
+    } finally {
+      setBusyInvoiceAction(
+        null,
       );
     }
   }
@@ -1744,12 +1912,12 @@ export default function InvoiceBuilder() {
                   {createdInvoice.invoice_number} is safely saved.
                 </span>
 
-                <a
-                  href={`/api/admin/invoices/${createdInvoice.id}/pdf`}
-                  className="rounded-xl border border-[#c8ad84]/20 px-4 py-3 text-[9px] font-semibold uppercase tracking-[0.1em] text-[#d8bf99]/55 transition hover:border-[#c8ad84]/35 hover:text-[#ead6b5]"
-                >
-                  Download PDF
-                </a>
+                <InvoiceLifecycleActions
+                  invoice={createdInvoice}
+                  onIssue={issueInvoice}
+                  onMarkPaid={markInvoicePaid}
+                  busyInvoiceAction={busyInvoiceAction}
+                />
               </>
             )}
           </div>
@@ -1763,6 +1931,9 @@ export default function InvoiceBuilder() {
         clients={
           workspace.clients
         }
+        onIssue={issueInvoice}
+        onMarkPaid={markInvoicePaid}
+        busyInvoiceAction={busyInvoiceAction}
       />
     </section>
   );
@@ -1771,11 +1942,22 @@ export default function InvoiceBuilder() {
 function InvoiceHistory({
   invoices,
   clients,
+  onIssue,
+  onMarkPaid,
+  busyInvoiceAction,
 }: {
   invoices:
     InvoiceSummary[];
   clients:
     ClientRecord[];
+  onIssue: (
+    invoice: InvoiceSummary,
+  ) => Promise<void>;
+  onMarkPaid: (
+    invoice: InvoiceSummary,
+  ) => Promise<void>;
+  busyInvoiceAction:
+    string | null;
 }) {
   const clientMap =
     useMemo(
@@ -1828,7 +2010,7 @@ function InvoiceHistory({
                 key={
                   invoice.id
                 }
-                className="grid gap-3 py-4 sm:grid-cols-[1.1fr_1fr_auto_auto_auto] sm:items-center"
+                className="grid gap-3 py-4 sm:grid-cols-[1.1fr_0.8fr_auto_auto_minmax(180px,auto)] sm:items-center"
               >
                 <div>
                   <p className="text-xs font-medium text-white/60">
@@ -1850,7 +2032,9 @@ function InvoiceHistory({
                 </div>
 
                 <span className="w-fit rounded-full border border-white/10 px-2.5 py-1 text-[8px] uppercase tracking-[0.1em] text-white/25">
-                  {invoice.status}
+                  {displayInvoiceStatus(
+                    invoice,
+                  )}
                 </span>
 
                 <p className="text-xs font-medium text-white/55">
@@ -1860,18 +2044,139 @@ function InvoiceHistory({
                   )}
                 </p>
 
-                <a
-                  href={`/api/admin/invoices/${invoice.id}/pdf`}
-                  className="w-fit rounded-lg border border-white/10 px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.09em] text-white/28 transition hover:border-[#c8ad84]/20 hover:text-[#d8bf99]/50"
-                >
-                  PDF
-                </a>
+                <InvoiceLifecycleActions
+                  invoice={invoice}
+                  onIssue={onIssue}
+                  onMarkPaid={onMarkPaid}
+                  busyInvoiceAction={busyInvoiceAction}
+                  compact
+                />
               </div>
             ),
           )}
         </div>
       )}
     </section>
+  );
+}
+
+function displayInvoiceStatus(
+  invoice: InvoiceSummary,
+) {
+  if (
+    invoice.status ===
+      "issued" &&
+    invoice.due_date <
+      localDateString()
+  ) {
+    return "overdue";
+  }
+
+  return invoice.status;
+}
+
+function InvoiceLifecycleActions({
+  invoice,
+  onIssue,
+  onMarkPaid,
+  busyInvoiceAction,
+  compact = false,
+}: {
+  invoice: InvoiceSummary;
+  onIssue: (
+    invoice: InvoiceSummary,
+  ) => Promise<void>;
+  onMarkPaid: (
+    invoice: InvoiceSummary,
+  ) => Promise<void>;
+  busyInvoiceAction:
+    string | null;
+  compact?: boolean;
+}) {
+  const issueBusy =
+    busyInvoiceAction ===
+    `issue:${invoice.id}`;
+
+  const paidBusy =
+    busyInvoiceAction ===
+    `paid:${invoice.id}`;
+
+  const anyBusy =
+    busyInvoiceAction !==
+    null;
+
+  const hasFinalPdf =
+    Boolean(
+      invoice.final_pdf_created_at,
+    );
+
+  const canDownload =
+    invoice.status ===
+      "draft" ||
+    hasFinalPdf;
+
+  const baseClass =
+    compact
+      ? "rounded-lg border px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.09em] transition"
+      : "rounded-xl border px-4 py-3 text-[9px] font-semibold uppercase tracking-[0.1em] transition";
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {canDownload && (
+        <a
+          href={`/api/admin/invoices/${invoice.id}/pdf`}
+          className={`${baseClass} border-white/10 text-white/30 hover:border-[#c8ad84]/25 hover:text-[#d8bf99]/55`}
+        >
+          {invoice.status ===
+            "draft"
+            ? "Draft PDF"
+            : "Download PDF"}
+        </a>
+      )}
+
+      {invoice.status ===
+        "draft" && (
+        <button
+          type="button"
+          disabled={anyBusy}
+          onClick={() =>
+            void onIssue(
+              invoice,
+            )
+          }
+          className={`${baseClass} border-[#c8ad84]/25 bg-[#c8ad84]/[0.05] text-[#dfc49b]/65 hover:border-[#c8ad84]/40 hover:text-[#f0d9b6] disabled:opacity-35`}
+        >
+          {issueBusy
+            ? "Issuing..."
+            : "Issue Invoice"}
+        </button>
+      )}
+
+      {invoice.status ===
+        "issued" && (
+        <button
+          type="button"
+          disabled={anyBusy}
+          onClick={() =>
+            void onMarkPaid(
+              invoice,
+            )
+          }
+          className={`${baseClass} border-emerald-200/15 bg-emerald-200/[0.03] text-emerald-100/45 hover:border-emerald-200/25 hover:text-emerald-100/65 disabled:opacity-35`}
+        >
+          {paidBusy
+            ? "Saving..."
+            : "Mark Paid"}
+        </button>
+      )}
+
+      {invoice.status ===
+        "paid" && (
+        <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-emerald-100/45">
+          Paid
+        </span>
+      )}
+    </div>
   );
 }
 

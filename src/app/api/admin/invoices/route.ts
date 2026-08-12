@@ -320,7 +320,7 @@ export async function GET() {
           "invoices",
         )
         .select(
-          "id,client_id,invoice_number,status,invoice_date,due_date,currency,subtotal_cents,discount_cents,tax_cents,adjustment_cents,total_cents,created_at",
+          "id,client_id,invoice_number,status,invoice_date,due_date,currency,subtotal_cents,discount_cents,tax_cents,adjustment_cents,total_cents,issued_at,paid_at,voided_at,final_pdf_created_at,created_at",
         )
         .eq(
           "created_by",
@@ -941,7 +941,7 @@ export async function POST(
           0,
       })
       .select(
-        "id,client_id,invoice_number,status,invoice_date,due_date,currency,sender_snapshot,client_snapshot,payment_instructions_snapshot,notes,subtotal_cents,discount_cents,tax_cents,adjustment_cents,total_cents,created_at",
+        "id,client_id,invoice_number,status,invoice_date,due_date,currency,sender_snapshot,client_snapshot,payment_instructions_snapshot,notes,subtotal_cents,discount_cents,tax_cents,adjustment_cents,total_cents,issued_at,paid_at,voided_at,final_pdf_created_at,created_at",
       )
       .single();
 
@@ -1018,7 +1018,7 @@ export async function POST(
         "invoices",
       )
       .select(
-        "id,client_id,invoice_number,status,invoice_date,due_date,currency,sender_snapshot,client_snapshot,payment_instructions_snapshot,notes,subtotal_cents,discount_cents,tax_cents,adjustment_cents,total_cents,created_at",
+        "id,client_id,invoice_number,status,invoice_date,due_date,currency,sender_snapshot,client_snapshot,payment_instructions_snapshot,notes,subtotal_cents,discount_cents,tax_cents,adjustment_cents,total_cents,issued_at,paid_at,voided_at,final_pdf_created_at,created_at",
       )
       .eq(
         "id",
