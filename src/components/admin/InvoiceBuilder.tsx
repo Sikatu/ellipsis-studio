@@ -379,59 +379,20 @@ export default function InvoiceBuilder() {
           );
         }
 
-        const next =
-          payload as
-            WorkspaceResponse;
-
         setWorkspace(
-          next,
+          payload as
+            WorkspaceResponse,
         );
-
-        if (
-          next.studioProfile
-        ) {
-          setCurrency(
-            next
-              .studioProfile
-              .default_currency,
-          );
-
-          setPaymentTermsDays(
-            next
-              .studioProfile
-              .default_payment_terms_days,
-          );
-
-          setDueDate(
-            addDays(
-              invoiceDate,
-              next
-                .studioProfile
-                .default_payment_terms_days,
-            ),
-          );
-
-          setPaymentInstructions(
-            next
-              .studioProfile
-              .payment_instructions,
-          );
-
-          setNotes(
-            next
-              .studioProfile
-              .default_notes,
-          );
-        }
       },
-      [
-        invoiceDate,
-      ],
+      [],
     );
 
   useEffect(() => {
     const controller =
       new AbortController();
+
+    const today =
+      localDateString();
 
     void fetch(
       "/api/admin/invoices",
@@ -482,7 +443,7 @@ export default function InvoiceBuilder() {
 
             setDueDate(
               addDays(
-                invoiceDate,
+                today,
                 next
                   .studioProfile
                   .default_payment_terms_days,
@@ -531,7 +492,7 @@ export default function InvoiceBuilder() {
     return () => {
       controller.abort();
     };
-  }, [invoiceDate]);
+  }, []);
 
   const selectedClient =
     useMemo(

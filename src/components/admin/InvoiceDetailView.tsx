@@ -371,6 +371,7 @@ export default function InvoiceDetailView({
     useState<
       "issue" |
       "paid" |
+      "void" |
       null
     >(
       null,
@@ -598,6 +599,91 @@ export default function InvoiceDetailView({
     }
   }
 
+  async function voidInvoice() {
+    if (
+      !invoice ||
+      (
+        invoice.status !==
+          "draft" &&
+        invoice.status !==
+          "issued"
+      )
+    ) {
+      return;
+    }
+
+    const issuedCopy =
+      invoice.status ===
+        "issued";
+
+    const warning =
+      issuedCopy
+        ? `Void ${invoice.invoice_number}? The issued PDF will remain preserved as the immutable record, but the invoice will be marked void.`
+        : `Void ${invoice.invoice_number}? This draft will be closed and cannot be edited or issued afterward.`;
+
+    if (
+      !window.confirm(
+        warning,
+      )
+    ) {
+      return;
+    }
+
+    setBusy(
+      "void",
+    );
+    setMessage(
+      null,
+    );
+
+    try {
+      const response =
+        await fetch(
+          `/api/admin/invoices/${invoice.id}/void`,
+          {
+            method:
+              "POST",
+          },
+        );
+
+      const payload =
+        (await response.json()) as {
+          error?: string;
+          preservedFinalPdf?: boolean;
+        };
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          payload.error ||
+            "Could not void invoice.",
+        );
+      }
+
+      setMessage(
+        payload.preservedFinalPdf
+          ? "Invoice voided. The original issued PDF remains preserved and unchanged."
+          : "Invoice voided.",
+      );
+
+      await load();
+    } catch (
+      actionError
+    ) {
+      setMessage(
+        actionError instanceof
+          Error
+          ? actionError.message
+          : "Could not void invoice.",
+      );
+    } finally {
+      setBusy(
+        null,
+      );
+    }
+  }
+
   if (
     loading
   ) {
@@ -660,6 +746,13 @@ export default function InvoiceDetailView({
       invoice.client_snapshot,
     );
 
+  const canDownload =
+    invoice.status ===
+      "draft" ||
+    Boolean(
+      invoice.final_pdf_sha256,
+    );
+
   const pdfLabel =
     invoice.status ===
       "draft"
@@ -706,32 +799,34 @@ export default function InvoiceDetailView({
             New Invoice
           </Link>
 
-          <a
-            href={`/api/admin/invoices/${invoice.id}/pdf`}
-            className="rounded-xl border border-[#c8ad84]/20 bg-[#c8ad84]/[0.04] px-4 py-3 text-[9px] font-semibold uppercase tracking-[0.1em] text-[#d8bf99]/60 transition hover:border-[#c8ad84]/35 hover:text-[#ead6b5]"
-          >
-            {pdfLabel}
-          </a>
+          {invoice.status ===
+            "draft" && (
+            <Link
+              href={`/admin/invoices/${invoice.id}/edit`}
+              className="rounded-xl border border-white/10 px-4 py-3 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/45 transition hover:border-[#c8ad84]/25 hover:text-[#ead6b5]"
+            >
+              Edit Draft
+            </Link>
+          )}
+
+          {canDownload && (
+            <a
+              href={`/api/admin/invoices/${invoice.id}/pdf`}
+              className="rounded-xl border border-[#c8ad84]/20 bg-[#c8ad84]/[0.04] px-4 py-3 text-[9px] font-semibold uppercase tracking-[0.1em] text-[#d8bf99]/60 transition hover:border-[#c8ad84]/35 hover:text-[#ead6b5]"
+            >
+              {pdfLabel}
+            </a>
+          )}
 
           {invoice.status ===
             "draft" && (
             <button
               type="button"
-              disabled={
-                busy !==
-                null
-              }
-              onClick={() =>
-                void issue()
-              }
+              disabled={busy !== null}
+              onClick={() => void issue()}
               className="rounded-xl bg-[#f4f0e8] px-4 py-3 text-[9px] font-semibold uppercase tracking-[0.1em] text-[#11110f] transition hover:bg-white disabled:opacity-40"
             >
-              {
-                busy ===
-                "issue"
-                  ? "Issuing..."
-                  : "Issue Invoice"
-              }
+              {busy === "issue" ? "Issuing..." : "Issue Invoice"}
             </button>
           )}
 
@@ -739,21 +834,22 @@ export default function InvoiceDetailView({
             "issued" && (
             <button
               type="button"
-              disabled={
-                busy !==
-                null
-              }
-              onClick={() =>
-                void markPaid()
-              }
+              disabled={busy !== null}
+              onClick={() => void markPaid()}
               className="rounded-xl border border-emerald-200/15 bg-emerald-200/[0.04] px-4 py-3 text-[9px] font-semibold uppercase tracking-[0.1em] text-emerald-100/55 transition hover:border-emerald-200/25 hover:text-emerald-100/75 disabled:opacity-40"
             >
-              {
-                busy ===
-                "paid"
-                  ? "Saving..."
-                  : "Mark Paid"
-              }
+              {busy === "paid" ? "Saving..." : "Mark Paid"}
+            </button>
+          )}
+
+          {(invoice.status === "draft" || invoice.status === "issued") && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void voidInvoice()}
+              className="rounded-xl border border-rose-200/15 bg-rose-200/[0.025] px-4 py-3 text-[9px] font-semibold uppercase tracking-[0.1em] text-rose-100/45 transition hover:border-rose-200/25 hover:text-rose-100/65 disabled:opacity-40"
+            >
+              {busy === "void" ? "Voiding..." : "Void"}
             </button>
           )}
         </div>

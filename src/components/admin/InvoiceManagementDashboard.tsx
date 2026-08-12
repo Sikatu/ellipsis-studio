@@ -767,6 +767,90 @@ export default function InvoiceManagementDashboard() {
     }
   }
 
+  async function voidInvoice(
+    invoice: InvoiceSummary,
+  ) {
+    if (
+      invoice.status !==
+        "draft" &&
+      invoice.status !==
+        "issued"
+    ) {
+      return;
+    }
+
+    const warning =
+      invoice.status ===
+        "issued"
+        ? `Void ${invoice.invoice_number}? Its immutable issued PDF will remain preserved.`
+        : `Void ${invoice.invoice_number}? This draft will be closed permanently.`;
+
+    if (
+      !window.confirm(
+        warning,
+      )
+    ) {
+      return;
+    }
+
+    const key =
+      `void:${invoice.id}`;
+
+    setBusyAction(
+      key,
+    );
+    setMessage(
+      null,
+    );
+
+    try {
+      const response =
+        await fetch(
+          `/api/admin/invoices/${invoice.id}/void`,
+          {
+            method:
+              "POST",
+          },
+        );
+
+      const payload =
+        (await response.json()) as {
+          error?: string;
+          preservedFinalPdf?: boolean;
+        };
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          payload.error ||
+            "Could not void invoice.",
+        );
+      }
+
+      setMessage(
+        payload.preservedFinalPdf
+          ? `${invoice.invoice_number} voided. Its original issued PDF remains preserved.`
+          : `${invoice.invoice_number} voided.`,
+      );
+
+      await loadInvoices();
+    } catch (
+      actionError
+    ) {
+      setMessage(
+        actionError instanceof
+          Error
+          ? actionError.message
+          : "Could not void invoice.",
+      );
+    } finally {
+      setBusyAction(
+        null,
+      );
+    }
+  }
+
   const filters:
     {
       id: Filter;
@@ -1024,6 +1108,10 @@ export default function InvoiceManagementDashboard() {
                   busyAction ===
                   `paid:${invoice.id}`;
 
+                const voidBusy =
+                  busyAction ===
+                  `void:${invoice.id}`;
+
                 const anyBusy =
                   Boolean(
                     busyAction,
@@ -1104,59 +1192,54 @@ export default function InvoiceManagementDashboard() {
                         View
                       </Link>
 
-                      <a
-                        href={`/api/admin/invoices/${invoice.id}/pdf`}
-                        className="rounded-lg border border-white/10 px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.09em] text-white/46 transition hover:border-[#c8ad84]/25 hover:text-[#d8bf99]/75"
-                      >
-                        {
-                          invoice.status ===
-                          "draft"
-                            ? "Draft PDF"
-                            : "PDF"
-                        }
-                      </a>
+                      {invoice.status === "draft" && (
+                        <Link
+                          href={`/admin/invoices/${invoice.id}/edit`}
+                          className="rounded-lg border border-white/10 px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.09em] text-white/46 transition hover:border-[#c8ad84]/25 hover:text-[#d8bf99]/75"
+                        >
+                          Edit
+                        </Link>
+                      )}
 
-                      {invoice.status ===
-                        "draft" && (
+                      {(invoice.status === "draft" || Boolean(invoice.final_pdf_created_at)) && (
+                        <a
+                          href={`/api/admin/invoices/${invoice.id}/pdf`}
+                          className="rounded-lg border border-white/10 px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.09em] text-white/46 transition hover:border-[#c8ad84]/25 hover:text-[#d8bf99]/75"
+                        >
+                          {invoice.status === "draft" ? "Draft PDF" : "PDF"}
+                        </a>
+                      )}
+
+                      {invoice.status === "draft" && (
                         <button
                           type="button"
-                          disabled={
-                            anyBusy
-                          }
-                          onClick={() =>
-                            void issueInvoice(
-                              invoice,
-                            )
-                          }
+                          disabled={anyBusy}
+                          onClick={() => void issueInvoice(invoice)}
                           className="rounded-lg border border-[#c8ad84]/20 bg-[#c8ad84]/[0.04] px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.09em] text-[#d8bf99]/55 transition hover:border-[#c8ad84]/35 hover:text-[#ead6b5] disabled:opacity-35"
                         >
-                          {
-                            issueBusy
-                              ? "Issuing..."
-                              : "Issue"
-                          }
+                          {issueBusy ? "Issuing..." : "Issue"}
                         </button>
                       )}
 
-                      {invoice.status ===
-                        "issued" && (
+                      {invoice.status === "issued" && (
                         <button
                           type="button"
-                          disabled={
-                            anyBusy
-                          }
-                          onClick={() =>
-                            void markPaid(
-                              invoice,
-                            )
-                          }
+                          disabled={anyBusy}
+                          onClick={() => void markPaid(invoice)}
                           className="rounded-lg border border-emerald-200/15 bg-emerald-200/[0.03] px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.09em] text-emerald-100/45 transition hover:border-emerald-200/25 hover:text-emerald-100/65 disabled:opacity-35"
                         >
-                          {
-                            paidBusy
-                              ? "Saving..."
-                              : "Mark Paid"
-                          }
+                          {paidBusy ? "Saving..." : "Mark Paid"}
+                        </button>
+                      )}
+
+                      {(invoice.status === "draft" || invoice.status === "issued") && (
+                        <button
+                          type="button"
+                          disabled={anyBusy}
+                          onClick={() => void voidInvoice(invoice)}
+                          className="rounded-lg border border-rose-200/15 bg-rose-200/[0.02] px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.09em] text-rose-100/40 transition hover:border-rose-200/25 hover:text-rose-100/60 disabled:opacity-35"
+                        >
+                          {voidBusy ? "Voiding..." : "Void"}
                         </button>
                       )}
                     </div>
