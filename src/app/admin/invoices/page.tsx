@@ -3,6 +3,7 @@ import {
 } from "next/navigation";
 
 import StudioNav from "@/components/admin/StudioNav";
+import InvoiceBillingSetup from "@/components/admin/InvoiceBillingSetup";
 import {
   createClient,
 } from "@/lib/supabase/server";
@@ -148,21 +149,7 @@ export default async function InvoicesPage() {
           )}
         </section>
 
-        <section className="mt-8 rounded-[28px] border border-[#c8ad84]/15 bg-[#f4f0e8] p-7 text-[#11110f] sm:p-8">
-          <div className="max-w-2xl">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#8b6f49]">
-              Next setup
-            </p>
-
-            <h2 className="mt-4 text-2xl font-medium tracking-[-0.035em]">
-              Your billing defaults
-            </h2>
-
-            <p className="mt-3 text-sm leading-7 text-black/45">
-              Next we will add your invoice identity, saved payment instructions, currencies, client billing profiles, and automatic invoice numbering. You will enter these once and ELLIPSIS will reuse them.
-            </p>
-          </div>
-        </section>
+        <InvoiceBillingSetup />
       </div>
     </main>
   );
