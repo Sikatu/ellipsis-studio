@@ -1,16 +1,29 @@
-import OpenAI from "openai";
-
 import {
   NextRequest,
   NextResponse,
 } from "next/server";
 
 import {
-  AI_STRATEGIST_DEFAULT_MODEL,
   AI_STRATEGIST_PROMPT_VERSION,
-  AI_STRATEGY_SCHEMA,
   type AIStrategyOutput,
 } from "@/lib/ai-strategy";
+
+import {
+  AIRouterExhaustedError,
+  generateStrategyWithFailover,
+  getAIProviderStatuses,
+} from "@/lib/ai/router";
+
+import {
+  defaultAIPrivacyMode,
+  normalizeAIPrivacyMode,
+} from "@/lib/ai/provider-config";
+
+import type {
+  AIPrivacyMode,
+  AIProviderAttempt,
+
+} from "@/lib/ai/provider-types";
 
 import {
   buildApprovedStrategyPackageFingerprint,
@@ -35,15 +48,39 @@ const uuidPattern =
 
 type StrategyRunRecord = {
   id: string;
-  status: "completed" | "failed";
+  status:
+    | "completed"
+    | "failed";
+  provider: string;
   model: string;
   prompt_version: string;
   source_fingerprint: string;
-  output: AIStrategyOutput | null;
-  error_message: string | null;
-  input_tokens: number | null;
-  output_tokens: number | null;
-  total_tokens: number | null;
+  output:
+    | AIStrategyOutput
+    | null;
+  error_message:
+    | string
+    | null;
+  provider_request_id:
+    | string
+    | null;
+  provider_attempts:
+    | AIProviderAttempt[]
+    | null;
+  privacy_mode:
+    AIPrivacyMode;
+  latency_ms:
+    | number
+    | null;
+  input_tokens:
+    | number
+    | null;
+  output_tokens:
+    | number
+    | null;
+  total_tokens:
+    | number
+    | null;
   created_at: string;
 };
 
@@ -191,7 +228,24 @@ async function loadLatestRuns(
   } = await supabase
     .from("strategy_ai_runs")
     .select(
-      "id,status,model,prompt_version,source_fingerprint,output,error_message,input_tokens,output_tokens,total_tokens,created_at",
+      [
+        "id",
+        "status",
+        "provider",
+        "model",
+        "prompt_version",
+        "source_fingerprint",
+        "output",
+        "error_message",
+        "provider_request_id",
+        "provider_attempts",
+        "privacy_mode",
+        "latency_ms",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "created_at",
+      ].join(","),
     )
     .eq(
       "project_id",
@@ -214,7 +268,7 @@ async function loadLatestRuns(
   return (
     data ??
     []
-  ) as StrategyRunRecord[];
+  ) as unknown as StrategyRunRecord[];
 }
 
 function strategyInput(
@@ -226,14 +280,15 @@ function strategyInput(
     >
   >,
 ) {
-  const reviewMap = new Map(
-    context.reviews.map(
-      (review) => [
-        review.deliverable_id,
-        review,
-      ],
-    ),
-  );
+  const reviewMap =
+    new Map(
+      context.reviews.map(
+        (review) => [
+          review.deliverable_id,
+          review,
+        ],
+      ),
+    );
 
   return {
     project: {
@@ -245,7 +300,9 @@ function strategyInput(
       context.synthesis.deliverables.map(
         (item) => {
           const review =
-            reviewMap.get(item.id);
+            reviewMap.get(
+              item.id,
+            );
 
           return {
             id: item.id,
@@ -325,6 +382,104 @@ NON-NEGOTIABLE RULES:
 This is a synthesis task, not a research task.
 `.trim();
 
+function providerLabel(
+  provider:
+    string | null,
+) {
+  if (!provider) {
+    return null;
+  }
+
+  const labels:
+    Record<
+      string,
+      string
+    > = {
+      groq: "Groq",
+      openrouter:
+        "OpenRouter",
+      ollama: "Ollama",
+      gemini: "Gemini",
+      openai: "OpenAI",
+    };
+
+  return (
+    labels[provider] ??
+    provider
+  );
+}
+
+function failedRunValues({
+  projectId,
+  userId,
+  sourceFingerprint,
+  privacyMode,
+  attempts,
+  message,
+  latencyMs,
+}: {
+  projectId: string;
+  userId: string;
+  sourceFingerprint: string;
+  privacyMode: AIPrivacyMode;
+  attempts: AIProviderAttempt[];
+  message: string;
+  latencyMs: number;
+}) {
+  const lastAttempt =
+    attempts.length > 0
+      ? attempts[
+          attempts.length - 1
+        ]
+      : undefined;
+
+  return {
+    project_id:
+      projectId,
+
+    requested_by:
+      userId,
+
+    source_fingerprint:
+      sourceFingerprint,
+
+    provider:
+      lastAttempt
+        ?.provider ??
+      "router",
+
+    model:
+      lastAttempt
+        ?.requestedModel ??
+      "automatic",
+
+    prompt_version:
+      AI_STRATEGIST_PROMPT_VERSION,
+
+    status: "failed",
+
+    output: null,
+
+    error_message:
+      message,
+
+    provider_request_id:
+      null,
+
+    provider_attempts:
+      attempts,
+
+    privacy_mode:
+      privacyMode,
+
+    latency_ms:
+      latencyMs,
+
+    openai_response_id:
+      null,
+  };
+}
+
 export async function GET(
   request: NextRequest,
 ) {
@@ -336,7 +491,8 @@ export async function GET(
   if (!user) {
     return NextResponse.json(
       {
-        error: "Unauthorized",
+        error:
+          "Unauthorized",
       },
       {
         status: 401,
@@ -351,7 +507,9 @@ export async function GET(
 
   if (
     !projectId ||
-    !uuidPattern.test(projectId)
+    !uuidPattern.test(
+      projectId,
+    )
   ) {
     return NextResponse.json(
       {
@@ -363,6 +521,18 @@ export async function GET(
       },
     );
   }
+
+  const privacyParam =
+    request.nextUrl.searchParams.get(
+      "privacyMode",
+    );
+
+  const privacyMode =
+    privacyParam
+      ? normalizeAIPrivacyMode(
+          privacyParam,
+        )
+      : defaultAIPrivacyMode();
 
   try {
     const context =
@@ -389,17 +559,33 @@ export async function GET(
         projectId,
       );
 
+    const providers =
+      getAIProviderStatuses(
+        privacyMode,
+      );
+
+    const primary =
+      providers.find(
+        (provider) =>
+          provider.eligible,
+      ) ??
+      null;
+
     return NextResponse.json({
       configured:
-        Boolean(
-          process.env
-            .OPENAI_API_KEY,
-        ),
+        Boolean(primary),
+
+      provider:
+        primary?.id ??
+        null,
 
       model:
-        process.env
-          .OPENAI_STRATEGIST_MODEL ||
-        AI_STRATEGIST_DEFAULT_MODEL,
+        primary?.model ??
+        "No provider ready",
+
+      privacyMode,
+
+      providers,
 
       gate:
         context.gate,
@@ -431,6 +617,9 @@ export async function GET(
 export async function POST(
   request: NextRequest,
 ) {
+  const requestStarted =
+    Date.now();
+
   const {
     supabase,
     user,
@@ -439,7 +628,8 @@ export async function POST(
   if (!user) {
     return NextResponse.json(
       {
-        error: "Unauthorized",
+        error:
+          "Unauthorized",
       },
       {
         status: 401,
@@ -449,12 +639,14 @@ export async function POST(
 
   let body: {
     projectId?: unknown;
+    privacyMode?: unknown;
   };
 
   try {
     body =
       (await request.json()) as {
         projectId?: unknown;
+        privacyMode?: unknown;
       };
   } catch {
     return NextResponse.json(
@@ -489,6 +681,14 @@ export async function POST(
       },
     );
   }
+
+  const privacyMode =
+    body.privacyMode ===
+      undefined
+      ? defaultAIPrivacyMode()
+      : normalizeAIPrivacyMode(
+          body.privacyMode,
+        );
 
   let context:
     Awaited<
@@ -544,14 +744,26 @@ export async function POST(
     );
   }
 
-  const apiKey =
-    process.env.OPENAI_API_KEY;
+  const providerStatuses =
+    getAIProviderStatuses(
+      privacyMode,
+    );
 
-  if (!apiKey) {
+  if (
+    !providerStatuses.some(
+      (provider) =>
+        provider.eligible,
+    )
+  ) {
     return NextResponse.json(
       {
         error:
-          "OPENAI_API_KEY is not configured on the server.",
+          "No eligible AI provider is configured for this privacy mode.",
+
+        privacyMode,
+
+        providers:
+          providerStatuses,
       },
       {
         status: 503,
@@ -559,176 +771,230 @@ export async function POST(
     );
   }
 
-  const model =
-    process.env
-      .OPENAI_STRATEGIST_MODEL ||
-    AI_STRATEGIST_DEFAULT_MODEL;
-
-  const openai =
-    new OpenAI({
-      apiKey,
-    });
+  let result:
+    Awaited<
+      ReturnType<
+        typeof generateStrategyWithFailover
+      >
+    >;
 
   try {
-    const response =
-      await openai.responses.create({
-        model,
+    result =
+      await generateStrategyWithFailover(
+        {
+          instructions:
+            strategistInstructions,
 
-        store: false,
-
-        instructions:
-          strategistInstructions,
-
-        input:
-          JSON.stringify(
-            strategyInput(
-              context,
+          input:
+            JSON.stringify(
+              strategyInput(
+                context,
+              ),
             ),
-          ),
 
-        text: {
-          format: {
-            type:
-              "json_schema",
-
-            name:
-              "ellipsis_brand_strategy",
-
-            strict: true,
-
-            schema:
-              AI_STRATEGY_SCHEMA,
-          },
+          privacyMode,
         },
-      });
-
-    if (
-      !response.output_text
-    ) {
-      throw new Error(
-        "The AI Strategist returned an empty response.",
       );
-    }
+  } catch (error) {
+    const attempts =
+      error instanceof
+      AIRouterExhaustedError
+        ? error.attempts
+        : [];
 
-    const parsed =
-      JSON.parse(
-        response.output_text,
-      ) as AIStrategyOutput;
+    const message =
+      error instanceof
+      AIRouterExhaustedError
+        ? error.message
+        : "AI strategy generation failed before a valid strategy was returned.";
 
     const {
-      data: run,
-      error: insertError,
+      error:
+        failureInsertError,
     } = await supabase
       .from("strategy_ai_runs")
-      .insert({
-        project_id:
+      .insert(
+        failedRunValues({
           projectId,
-
-        requested_by:
-          user.id,
-
-        source_fingerprint:
-          context.packageFingerprint,
-
-        model,
-
-        prompt_version:
-          AI_STRATEGIST_PROMPT_VERSION,
-
-        status:
-          "completed",
-
-        output:
-          parsed,
-
-        error_message:
-          null,
-
-        openai_response_id:
-          response.id,
-
-        input_tokens:
-          response.usage
-            ?.input_tokens ??
-          null,
-
-        output_tokens:
-          response.usage
-            ?.output_tokens ??
-          null,
-
-        total_tokens:
-          response.usage
-            ?.total_tokens ??
-          null,
-      })
-      .select(
-        [
-          "id",
-          "status",
-          "model",
-          "prompt_version",
-          "source_fingerprint",
-          "output",
-          "error_message",
-          "input_tokens",
-          "output_tokens",
-          "total_tokens",
-          "created_at",
-        ].join(","),
-      )
-      .single();
-
-    if (insertError) {
-      throw new Error(
-        insertError.message,
-      );
-    }
-
-    return NextResponse.json({
-      run,
-      strategy: parsed,
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "AI strategy generation failed.";
-
-    await supabase
-      .from("strategy_ai_runs")
-      .insert({
-        project_id:
-          projectId,
-
-        requested_by:
-          user.id,
-
-        source_fingerprint:
-          context.packageFingerprint,
-
-        model,
-
-        prompt_version:
-          AI_STRATEGIST_PROMPT_VERSION,
-
-        status:
-          "failed",
-
-        output:
-          null,
-
-        error_message:
+          userId:
+            user.id,
+          sourceFingerprint:
+            context.packageFingerprint,
+          privacyMode,
+          attempts,
           message,
-      });
+          latencyMs:
+            Date.now() -
+            requestStarted,
+        }),
+      );
 
     return NextResponse.json(
       {
-        error: message,
+        error:
+          message,
+
+        attempts,
+
+        privacyMode,
+
+        failureLogged:
+          !failureInsertError,
+
+        providers:
+          getAIProviderStatuses(
+            privacyMode,
+          ),
       },
       {
-        status: 500,
+        status:
+          error instanceof
+          AIRouterExhaustedError
+            ? 502
+            : 500,
       },
     );
   }
+
+  const {
+    data: run,
+    error: insertError,
+  } = await supabase
+    .from("strategy_ai_runs")
+    .insert({
+      project_id:
+        projectId,
+
+      requested_by:
+        user.id,
+
+      source_fingerprint:
+        context.packageFingerprint,
+
+      provider:
+        result.provider,
+
+      model:
+        result.actualModel,
+
+      prompt_version:
+        AI_STRATEGIST_PROMPT_VERSION,
+
+      status:
+        "completed",
+
+      output:
+        result.output,
+
+      error_message:
+        null,
+
+      provider_request_id:
+        result.requestId,
+
+      provider_attempts:
+        result.attempts,
+
+      privacy_mode:
+        result.privacyMode,
+
+      latency_ms:
+        result.totalLatencyMs,
+
+      openai_response_id:
+        result.provider ===
+          "openai"
+          ? result.requestId
+          : null,
+
+      input_tokens:
+        result.usage
+          .inputTokens,
+
+      output_tokens:
+        result.usage
+          .outputTokens,
+
+      total_tokens:
+        result.usage
+          .totalTokens,
+    })
+    .select(
+      [
+        "id",
+        "status",
+        "provider",
+        "model",
+        "prompt_version",
+        "source_fingerprint",
+        "output",
+        "error_message",
+        "provider_request_id",
+        "provider_attempts",
+        "privacy_mode",
+        "latency_ms",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "created_at",
+      ].join(","),
+    )
+    .single();
+
+  if (insertError) {
+    return NextResponse.json(
+      {
+        error:
+          "The AI provider returned a valid strategy, but ELLIPSIS could not persist the completed run. Do not regenerate until run storage is checked.",
+
+        generated:
+          true,
+
+        persisted:
+          false,
+
+        provider:
+          result.provider,
+
+        providerLabel:
+          providerLabel(
+            result.provider,
+          ),
+
+        model:
+          result.actualModel,
+
+        attempts:
+          result.attempts,
+
+        privacyMode:
+          result.privacyMode,
+      },
+      {
+        status: 503,
+      },
+    );
+  }
+
+  return NextResponse.json({
+    run,
+    strategy:
+      result.output,
+    provider:
+      result.provider,
+    providerLabel:
+      providerLabel(
+        result.provider,
+      ),
+    model:
+      result.actualModel,
+    attempts:
+      result.attempts,
+    privacyMode:
+      result.privacyMode,
+    generated:
+      true,
+    persisted:
+      true,
+  });
 }

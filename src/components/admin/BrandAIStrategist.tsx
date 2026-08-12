@@ -3,12 +3,19 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
 import type {
   AIStrategyOutput,
 } from "@/lib/ai-strategy";
+
+import type {
+  AIPrivacyMode,
+  AIProviderAttempt,
+  AIProviderStatus,
+} from "@/lib/ai/provider-types";
 
 type Gate = {
   ready: boolean;
@@ -23,24 +30,57 @@ type Gate = {
 
 type StrategyRun = {
   id: string;
-  status: "completed" | "failed";
+  status:
+    | "completed"
+    | "failed";
+  provider: string;
   model: string;
   prompt_version: string;
   source_fingerprint: string;
-  output: AIStrategyOutput | null;
-  error_message: string | null;
-  input_tokens: number | null;
-  output_tokens: number | null;
-  total_tokens: number | null;
+  output:
+    | AIStrategyOutput
+    | null;
+  error_message:
+    | string
+    | null;
+  provider_request_id:
+    | string
+    | null;
+  provider_attempts:
+    | AIProviderAttempt[]
+    | null;
+  privacy_mode:
+    AIPrivacyMode;
+  latency_ms:
+    | number
+    | null;
+  input_tokens:
+    | number
+    | null;
+  output_tokens:
+    | number
+    | null;
+  total_tokens:
+    | number
+    | null;
   created_at: string;
 };
 
 type StatusPayload = {
   configured: boolean;
+  provider:
+    | string
+    | null;
   model: string;
+  privacyMode:
+    AIPrivacyMode;
+  providers:
+    AIProviderStatus[];
   gate: Gate;
   sourceFingerprint: string;
-  latestRun: StrategyRun | null;
+  latestRun:
+    | StrategyRun
+    | null;
   runs: StrategyRun[];
   error?: string;
 };
@@ -62,12 +102,73 @@ function formatDate(
   return date.toLocaleString();
 }
 
+function formatProvider(
+  value: string,
+) {
+  const labels:
+    Record<
+      string,
+      string
+    > = {
+      groq: "Groq",
+      openrouter:
+        "OpenRouter",
+      ollama: "Ollama",
+      gemini: "Gemini",
+      openai: "OpenAI",
+      router: "AI Router",
+    };
+
+  return (
+    labels[value] ??
+    value
+  );
+}
+
+function providerStateLabel(
+  provider:
+    AIProviderStatus,
+) {
+  if (
+    provider.cooldownUntil
+  ) {
+    return "Cooling down";
+  }
+
+  if (
+    provider.routingRole ===
+      "experimental" &&
+    provider.configured
+  ) {
+    return "Experimental";
+  }
+
+  if (
+    provider.eligible &&
+    provider.routingRole ===
+      "primary"
+  ) {
+    return "Primary";
+  }
+
+  if (provider.eligible) {
+    return "Fallback ready";
+  }
+
+  if (provider.configured) {
+    return "Restricted";
+  }
+
+  return "Not configured";
+}
+
 function StrategySection({
   label,
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  children:
+    React.ReactNode;
 }) {
   return (
     <article className="rounded-2xl border border-white/[0.08] bg-white/[0.018] p-6">
@@ -87,7 +188,9 @@ function BulletList({
 }: {
   items: string[];
 }) {
-  if (items.length === 0) {
+  if (
+    items.length === 0
+  ) {
     return (
       <p className="text-white/25">
         None established.
@@ -128,6 +231,18 @@ export default function BrandAIStrategist({
   >(null);
 
   const [
+    privacyMode,
+    setPrivacyMode,
+  ] = useState<
+    AIPrivacyMode
+  >("strict");
+
+  const privacyModeRef =
+    useRef<AIPrivacyMode>(
+      "strict",
+    );
+
+  const [
     loading,
     setLoading,
   ] = useState(true);
@@ -146,13 +261,26 @@ export default function BrandAIStrategist({
 
   const loadStatus =
     useCallback(
-      async () => {
+      async (
+        requestedMode?:
+          AIPrivacyMode,
+      ) => {
         try {
+          const params =
+            new URLSearchParams({
+              projectId,
+            });
+
+          if (requestedMode) {
+            params.set(
+              "privacyMode",
+              requestedMode,
+            );
+          }
+
           const response =
             await fetch(
-              `/api/admin/ai-strategist?projectId=${encodeURIComponent(
-                projectId,
-              )}`,
+              `/api/admin/ai-strategist?${params.toString()}`,
               {
                 cache:
                   "no-store",
@@ -171,6 +299,12 @@ export default function BrandAIStrategist({
           }
 
           setStatus(payload);
+          privacyModeRef.current =
+            payload.privacyMode;
+
+          setPrivacyMode(
+            payload.privacyMode,
+          );
           setError(null);
         } catch (loadError) {
           setError(
@@ -187,12 +321,17 @@ export default function BrandAIStrategist({
 
   useEffect(() => {
     const initialLoadTimer =
-      window.setTimeout(() => {
-        void loadStatus();
-      }, 0);
+      window.setTimeout(
+        () => {
+          void loadStatus();
+        },
+        0,
+      );
 
     function handleReviewUpdate() {
-      void loadStatus();
+      void loadStatus(
+        privacyModeRef.current,
+      );
     }
 
     window.addEventListener(
@@ -211,6 +350,29 @@ export default function BrandAIStrategist({
       );
     };
   }, [loadStatus]);
+
+  async function changePrivacyMode(
+    nextMode:
+      AIPrivacyMode,
+  ) {
+    if (
+      loading ||
+      generating ||
+      nextMode ===
+        privacyMode
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    privacyModeRef.current =
+      nextMode;
+    setPrivacyMode(nextMode);
+
+    await loadStatus(
+      nextMode,
+    );
+  }
 
   async function generate() {
     if (
@@ -238,6 +400,7 @@ export default function BrandAIStrategist({
             body:
               JSON.stringify({
                 projectId,
+                privacyMode,
               }),
           },
         );
@@ -254,12 +417,18 @@ export default function BrandAIStrategist({
         );
       }
 
-      await loadStatus();
+      await loadStatus(
+        privacyMode,
+      );
     } catch (generateError) {
       setError(
         generateError instanceof Error
           ? generateError.message
           : "AI strategy generation failed.",
+      );
+
+      await loadStatus(
+        privacyMode,
       );
     } finally {
       setGenerating(false);
@@ -287,6 +456,40 @@ export default function BrandAIStrategist({
         status.sourceFingerprint,
     );
 
+  const providers =
+    status?.providers ??
+    [];
+
+  const automaticProviders =
+    providers.filter(
+      (provider) =>
+        provider.eligible &&
+        provider.automatic,
+    );
+
+  const experimentalProviders =
+    providers.filter(
+      (provider) =>
+        provider.routingRole ===
+          "experimental" &&
+        provider.configured,
+    );
+
+  const configuredProviders =
+    providers.filter(
+      (provider) =>
+        provider.configured,
+    );
+
+  const failoverCount =
+    Math.max(
+      0,
+      (latestRun
+        ?.provider_attempts
+        ?.length ??
+        0) - 1,
+    );
+
   return (
     <section
       id="ai-strategist"
@@ -303,7 +506,7 @@ export default function BrandAIStrategist({
           </h2>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/40">
-            AI synthesis is permitted only after the deterministic evidence gate and studio approval gate both pass.
+            The ELLIPSIS AI Router synthesizes only studio-approved evidence and automatically moves only through production-approved routes. Local Ollama remains available for controlled experimental testing.
           </p>
         </div>
 
@@ -316,7 +519,7 @@ export default function BrandAIStrategist({
           }`}
         >
           {loading
-            ? "Checking gate"
+            ? "Checking router"
             : gate?.ready &&
                 status?.configured
               ? "Ready to generate"
@@ -351,36 +554,173 @@ export default function BrandAIStrategist({
 
         <article className="rounded-2xl border border-white/10 bg-white/[0.025] p-6">
           <p className="text-[10px] tracking-[0.15em] text-white/30 uppercase">
-            Stale approvals
+            Automatic routes
           </p>
 
           <p className="mt-5 text-3xl font-medium tracking-[-0.04em]">
-            {gate?.staleCount ??
-              "—"}
+            {loading
+              ? "—"
+              : automaticProviders.length}
+          </p>
+
+          <p className="mt-2 text-[10px] text-white/25">
+            {configuredProviders.length} configured / {experimentalProviders.length} experimental
           </p>
         </article>
 
         <article className="rounded-2xl border border-white/10 bg-white/[0.025] p-6">
           <p className="text-[10px] tracking-[0.15em] text-white/30 uppercase">
-            Model
+            Primary route
           </p>
 
-          <p className="mt-5 text-sm font-medium text-white/60">
+          <p className="mt-5 text-sm font-medium text-white/65">
+            {status?.provider
+              ? formatProvider(
+                  status.provider,
+                )
+              : "No provider ready"}
+          </p>
+
+          <p className="mt-2 truncate text-[10px] text-white/25">
             {status?.model ??
               "Not loaded"}
           </p>
         </article>
       </div>
 
+      <div className="mt-5 rounded-2xl border border-white/[0.08] bg-white/[0.018] p-5">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <p className="text-xs font-medium text-white/60">
+              Routing privacy
+            </p>
+
+            <p className="mt-1 max-w-2xl text-xs leading-6 text-white/30">
+              Strict mode uses only privacy-qualified automatic routes. Maximum availability can also use explicitly opted-in cloud fallbacks. Local Ollama is shown separately as experimental and is never entered automatically.
+            </p>
+          </div>
+
+          <div className="flex w-fit rounded-xl border border-white/10 bg-black/10 p-1">
+            <button
+              type="button"
+              disabled={
+                loading ||
+                generating
+              }
+              onClick={() =>
+                void changePrivacyMode(
+                  "strict",
+                )
+              }
+              className={`rounded-lg px-3 py-2 text-[10px] font-medium transition ${
+                privacyMode ===
+                "strict"
+                  ? "bg-[#f5f0e6] text-[#11110f]"
+                  : "text-white/35 hover:text-white/60"
+              } disabled:opacity-30`}
+            >
+              Strict client privacy
+            </button>
+
+            <button
+              type="button"
+              disabled={
+                loading ||
+                generating
+              }
+              onClick={() =>
+                void changePrivacyMode(
+                  "maximum_availability",
+                )
+              }
+              className={`rounded-lg px-3 py-2 text-[10px] font-medium transition ${
+                privacyMode ===
+                "maximum_availability"
+                  ? "bg-[#f5f0e6] text-[#11110f]"
+                  : "text-white/35 hover:text-white/60"
+              } disabled:opacity-30`}
+            >
+              Maximum availability
+            </button>
+          </div>
+        </div>
+
+        {privacyMode ===
+          "maximum_availability" && (
+          <p className="mt-4 border-t border-white/[0.06] pt-4 text-[10px] leading-5 text-[#ddc39c]/70">
+            Maximum availability can use explicitly opted-in OpenRouter or Gemini routes when allowed by server policy. Ollama remains experimental and does not participate in automatic failover.
+          </p>
+        )}
+      </div>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {providers.map(
+          (provider) => (
+            <article
+              key={
+                provider.id
+              }
+              className={`rounded-2xl border p-4 ${
+                provider.eligible
+                  ? "border-emerald-300/15 bg-emerald-300/[0.025]"
+                  : provider.routingRole ===
+                        "experimental" &&
+                      provider.configured
+                    ? "border-[#c5a577]/20 bg-[#c5a577]/[0.035]"
+                    : "border-white/[0.07] bg-white/[0.012]"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-white/60">
+                    {provider.label}
+                  </p>
+
+                  <p className="mt-1 max-w-[160px] truncate text-[9px] text-white/20">
+                    {provider.model}
+                  </p>
+                </div>
+
+                <span
+                  className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                    provider.eligible
+                      ? "bg-emerald-300/70"
+                      : provider.routingRole ===
+                            "experimental" &&
+                          provider.configured
+                        ? "bg-[#c5a577]/70"
+                        : provider.configured
+                          ? "bg-[#c5a577]/45"
+                          : "bg-white/15"
+                  }`}
+                />
+              </div>
+
+              <p className="mt-4 text-[9px] font-medium tracking-[0.1em] text-white/30 uppercase">
+                {providerStateLabel(
+                  provider,
+                )}
+              </p>
+
+              {provider.reason && (
+                <p className="mt-2 text-[9px] leading-4 text-white/20">
+                  {provider.reason}
+                </p>
+              )}
+            </article>
+          ),
+        )}
+      </div>
+
       {!status?.configured &&
         !loading && (
           <div className="mt-5 rounded-2xl border border-[#c5a577]/20 bg-[#c5a577]/[0.05] p-5">
             <p className="text-xs font-medium text-[#ddc39c]">
-              OpenAI API key required
+              No AI provider is ready
             </p>
 
             <p className="mt-2 text-xs leading-6 text-white/35">
-              Add OPENAI_API_KEY to the server environment before generating a strategy. Never place the secret in client-side code.
+              Configure at least one automatic server-side provider. Experimental Ollama does not count as production routing coverage. API keys remain on the server and are never sent to this browser.
             </p>
           </div>
         )}
@@ -435,7 +775,7 @@ export default function BrandAIStrategist({
           className="rounded-xl bg-[#f5f0e6] px-5 py-3 text-xs font-semibold text-[#11110f] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-30"
         >
           {generating
-            ? "Generating strategy..."
+            ? "Routing strategy..."
             : latestRun
               ? "Generate new strategy version"
               : "Generate AI strategy"}
@@ -447,12 +787,15 @@ export default function BrandAIStrategist({
             loading ||
             generating
           }
-          onClick={() =>
-            void loadStatus()
-          }
+          onClick={() => {
+            setLoading(true);
+            void loadStatus(
+              privacyMode,
+            );
+          }}
           className="rounded-xl border border-white/10 px-5 py-3 text-xs text-white/40 transition hover:border-white/20 hover:text-white/65 disabled:opacity-30"
         >
-          Refresh gate
+          Refresh router
         </button>
       </div>
 
@@ -462,6 +805,12 @@ export default function BrandAIStrategist({
             Last run:{" "}
             {formatDate(
               latestRun.created_at,
+            )}
+          </span>
+
+          <span>
+            {formatProvider(
+              latestRun.provider,
             )}
           </span>
 
@@ -484,6 +833,27 @@ export default function BrandAIStrategist({
               tokens
             </span>
           )}
+
+          {latestRun.latency_ms !==
+            null && (
+            <span>
+              {(
+                latestRun.latency_ms /
+                1000
+              ).toFixed(1)}
+              s
+            </span>
+          )}
+
+          {failoverCount > 0 && (
+            <span className="text-[#ddc39c]/60">
+              {failoverCount} fallback
+              {failoverCount === 1
+                ? ""
+                : "s"}{" "}
+              used
+            </span>
+          )}
         </div>
       )}
 
@@ -497,6 +867,34 @@ export default function BrandAIStrategist({
           <p className="mt-2 text-xs leading-6 text-white/30">
             {latestRun.error_message}
           </p>
+
+          {latestRun
+            .provider_attempts &&
+            latestRun
+              .provider_attempts
+              .length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {latestRun
+                  .provider_attempts
+                  .map(
+                    (
+                      attempt,
+                      index,
+                    ) => (
+                      <span
+                        key={`${attempt.provider}-${attempt.startedAt}-${index}`}
+                        className="rounded-full border border-white/[0.08] px-3 py-1.5 text-[9px] text-white/25"
+                      >
+                        {formatProvider(
+                          attempt.provider,
+                        )}{" "}
+                        ·{" "}
+                        {attempt.status}
+                      </span>
+                    ),
+                  )}
+              </div>
+            )}
         </div>
       )}
 

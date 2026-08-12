@@ -43,3 +43,5 @@ backups/
 audit-reports/
 release-audits/
 tsconfig.before-backup-exclusion.*.json
+logs/
+ELLIPSIS-Phase*-Source-Bundle.txt
