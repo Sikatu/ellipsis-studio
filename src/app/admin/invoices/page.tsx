@@ -4,6 +4,7 @@ import {
 
 import StudioNav from "@/components/admin/StudioNav";
 import InvoiceBillingSetup from "@/components/admin/InvoiceBillingSetup";
+import InvoiceBuilder from "@/components/admin/InvoiceBuilder";
 import {
   createClient,
 } from "@/lib/supabase/server";
@@ -150,6 +151,8 @@ export default async function InvoicesPage() {
         </section>
 
         <InvoiceBillingSetup />
+
+        <InvoiceBuilder />
       </div>
     </main>
   );
