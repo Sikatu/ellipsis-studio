@@ -43,6 +43,27 @@ type EmailDelivery = {
     string | null;
 };
 
+type EmailProviderEvent = {
+  id: string;
+  delivery_id: string;
+  invoice_id: string;
+  provider: string;
+  provider_message_id: string;
+  event_type:
+    | "email.sent"
+    | "email.delivered"
+    | "email.delivery_delayed"
+    | "email.bounced"
+    | "email.failed";
+  event_created_at: string;
+  detail:
+    Record<
+      string,
+      unknown
+    >;
+  received_at: string;
+};
+
 type EmailAutomation = {
   invoice_id: string;
   enabled: boolean;
@@ -99,6 +120,8 @@ type EmailWorkspace = {
   };
   deliveries?:
     EmailDelivery[];
+  providerEvents?:
+    EmailProviderEvent[];
   automation?:
     EmailAutomation |
     null;
@@ -183,22 +206,138 @@ function localInputValue(
     );
 }
 
-function statusLabel(
-  status:
-    EmailDelivery["status"],
+function providerEventState(
+  delivery:
+    EmailDelivery,
+  event:
+    EmailProviderEvent |
+    undefined,
 ) {
-  switch (
-    status
+  if (
+    delivery.status ===
+      "failed"
   ) {
-    case "sent":
-      return "Sent";
+    return {
+      label:
+        "Failed",
+      tone:
+        "border-rose-200/15 text-rose-100/50",
+    };
+  }
 
-    case "failed":
-      return "Failed";
+  if (
+    delivery.status ===
+      "attempting"
+  ) {
+    return {
+      label:
+        "Sending",
+      tone:
+        "border-white/10 text-white/30",
+    };
+  }
+
+  switch (
+    event?.event_type
+  ) {
+    case "email.delivered":
+      return {
+        label:
+          "Delivered",
+        tone:
+          "border-emerald-200/15 bg-emerald-200/[0.025] text-emerald-100/60",
+      };
+
+    case "email.delivery_delayed":
+      return {
+        label:
+          "Delayed",
+        tone:
+          "border-amber-200/15 bg-amber-200/[0.025] text-amber-100/60",
+      };
+
+    case "email.bounced":
+      return {
+        label:
+          "Bounced",
+        tone:
+          "border-rose-200/15 bg-rose-200/[0.025] text-rose-100/60",
+      };
+
+    case "email.failed":
+      return {
+        label:
+          "Provider failed",
+        tone:
+          "border-rose-200/15 bg-rose-200/[0.025] text-rose-100/60",
+      };
+
+    case "email.sent":
+      return {
+        label:
+          "Provider sent",
+        tone:
+          "border-sky-200/15 bg-sky-200/[0.025] text-sky-100/55",
+      };
 
     default:
-      return "Sending";
+      return {
+        label:
+          "Accepted",
+        tone:
+          "border-sky-200/15 text-sky-100/45",
+      };
   }
+}
+
+function providerEventDetail(
+  event:
+    EmailProviderEvent |
+    undefined,
+) {
+  if (!event) {
+    return "";
+  }
+
+  const detail =
+    event.detail ?? {};
+
+  const reason =
+    typeof detail.reason ===
+      "string"
+      ? detail.reason
+      : "";
+
+  const message =
+    typeof detail.message ===
+      "string"
+      ? detail.message
+      : "";
+
+  const type =
+    typeof detail.type ===
+      "string"
+      ? detail.type
+      : "";
+
+  const subType =
+    typeof detail.subType ===
+      "string"
+      ? detail.subType
+      : "";
+
+  return [
+    reason,
+    message,
+    type,
+    subType,
+  ]
+    .filter(
+      Boolean,
+    )
+    .join(
+      " / ",
+    );
 }
 
 function purposeLabel(
@@ -523,6 +662,34 @@ export default function InvoiceCommunicationPanel({
   const deliveries =
     state?.deliveries ??
     [];
+
+  const providerEvents =
+    state?.providerEvents ??
+    [];
+
+  const latestProviderEventByDelivery =
+    new Map<
+      string,
+      EmailProviderEvent
+    >();
+
+  for (
+    const event of
+      providerEvents
+  ) {
+    if (
+      !latestProviderEventByDelivery
+        .has(
+          event.delivery_id,
+        )
+    ) {
+      latestProviderEventByDelivery
+        .set(
+          event.delivery_id,
+          event,
+        );
+    }
+  }
 
   const automation =
     state?.automation ??
@@ -1265,7 +1432,7 @@ export default function InvoiceCommunicationPanel({
             </p>
 
             <p className="mt-2 text-xs text-white/30">
-              Provider attempts and outcomes. Secure bearer tokens are never stored here.
+              Provider acceptance and verified delivery outcomes. Secure bearer tokens are never stored here.
             </p>
           </div>
 
@@ -1308,20 +1475,24 @@ export default function InvoiceCommunicationPanel({
                       <span
                         className={[
                           "rounded-full border px-2 py-0.5 text-[8px] uppercase tracking-[0.08em]",
-                          delivery.status ===
-                            "sent"
-                            ? "border-emerald-200/15 text-emerald-100/50"
-                            : delivery.status ===
-                                "failed"
-                              ? "border-rose-200/15 text-rose-100/50"
-                              : "border-white/10 text-white/30",
+                          providerEventState(
+                            delivery,
+                            latestProviderEventByDelivery
+                              .get(
+                                delivery.id,
+                              ),
+                          ).tone,
                         ].join(
                           " ",
                         )}
                       >
-                        {statusLabel(
-                          delivery.status,
-                        )}
+                        {providerEventState(
+                          delivery,
+                          latestProviderEventByDelivery
+                            .get(
+                              delivery.id,
+                            ),
+                        ).label}
                       </span>
                     </div>
 
@@ -1339,6 +1510,36 @@ export default function InvoiceCommunicationPanel({
                           ? `${delivery.error_code}: `
                           : ""}
                         {delivery.error_message}
+                      </p>
+                    )}
+
+                    {latestProviderEventByDelivery
+                      .get(
+                        delivery.id,
+                      ) && (
+                      <p className="mt-2 text-[10px] leading-5 text-white/30">
+                        Provider update:{" "}
+                        {formatDate(
+                          latestProviderEventByDelivery
+                            .get(
+                              delivery.id,
+                            )
+                            ?.event_created_at ??
+                            null,
+                        )}
+                        {providerEventDetail(
+                          latestProviderEventByDelivery
+                            .get(
+                              delivery.id,
+                            ),
+                        )
+                          ? ` / ${providerEventDetail(
+                              latestProviderEventByDelivery
+                                .get(
+                                  delivery.id,
+                                ),
+                            )}`
+                          : ""}
                       </p>
                     )}
                   </div>

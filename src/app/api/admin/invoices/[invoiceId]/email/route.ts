@@ -276,6 +276,7 @@ async function workspaceState(
 ) {
   const [
     deliveriesResult,
+    providerEventsResult,
     automationResult,
   ] =
     await Promise.all([
@@ -307,6 +308,28 @@ async function workspaceState(
 
       admin
         .from(
+          "invoice_email_provider_events",
+        )
+        .select(
+          "id,delivery_id,invoice_id,provider,provider_message_id,event_type,event_created_at,detail,received_at",
+        )
+        .eq(
+          "invoice_id",
+          invoice.id,
+        )
+        .order(
+          "event_created_at",
+          {
+            ascending:
+              false,
+          },
+        )
+        .limit(
+          250,
+        ),
+
+      admin
+        .from(
           "invoice_email_automations",
         )
         .select(
@@ -325,10 +348,13 @@ async function workspaceState(
 
   if (
     deliveriesResult.error ||
+    providerEventsResult.error ||
     automationResult.error
   ) {
     throw new Error(
       deliveriesResult.error
+        ?.message ||
+      providerEventsResult.error
         ?.message ||
       automationResult.error
         ?.message ||
@@ -390,6 +416,9 @@ async function workspaceState(
     templates,
     deliveries:
       deliveriesResult.data ??
+      [],
+    providerEvents:
+      providerEventsResult.data ??
       [],
     automation:
       automationResult.data ??
