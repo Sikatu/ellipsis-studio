@@ -989,12 +989,21 @@ export default function InvoiceManagementDashboard() {
             </h2>
           </div>
 
-          <Link
-            href="/admin/invoices/new"
-            className="w-fit rounded-xl bg-[#f4f0e8] px-5 py-3 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#11110f] transition hover:bg-white"
-          >
-            New Invoice
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/admin/invoices/analytics"
+              className="w-fit rounded-xl border border-[#c8ad84]/20 bg-[#c8ad84]/[0.04] px-5 py-3 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#d8bf99]/60 transition hover:border-[#c8ad84]/35 hover:text-[#ead6b5]"
+            >
+              Finance Overview
+            </Link>
+
+            <Link
+              href="/admin/invoices/new"
+              className="w-fit rounded-xl bg-[#f4f0e8] px-5 py-3 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#11110f] transition hover:bg-white"
+            >
+              New Invoice
+            </Link>
+          </div>
         </div>
 
         <div className="mt-7 flex flex-col gap-4">
