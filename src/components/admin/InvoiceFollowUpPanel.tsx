@@ -421,6 +421,47 @@ export default function InvoiceFollowUpPanel({
     ],
   );
 
+  useEffect(
+    () => {
+      function refreshFollowUp(
+        event: Event,
+      ) {
+        const detail =
+          (
+            event as
+              CustomEvent<{
+                invoiceId?:
+                  string;
+              }>
+          ).detail;
+
+        if (
+          detail
+            ?.invoiceId ===
+          invoiceId
+        ) {
+          void load();
+        }
+      }
+
+      window.addEventListener(
+        "ellipsis:invoice-follow-up-changed",
+        refreshFollowUp,
+      );
+
+      return () => {
+        window.removeEventListener(
+          "ellipsis:invoice-follow-up-changed",
+          refreshFollowUp,
+        );
+      };
+    },
+    [
+      invoiceId,
+      load,
+    ],
+  );
+
   const effectiveStatus =
     state?.invoice
       ?.status ??
@@ -739,7 +780,7 @@ export default function InvoiceFollowUpPanel({
           </h2>
 
           <p className="mt-3 text-xs leading-6 text-white/38">
-            Schedule the next touchpoint, keep an internal note, and record reminders or client replies. Communication entries are records only; ELLIPSIS does not send them automatically in this phase.
+            Use Invoice Communication above to send invoice emails and payment reminders. This section keeps the internal follow-up plan and records manual client contact alongside automatic email history.
           </p>
         </div>
 
@@ -942,7 +983,7 @@ export default function InvoiceFollowUpPanel({
                 </p>
 
                 <p className="mt-2 text-xs leading-5 text-white/30">
-                  This records what happened. It does not send an email, text, or message.
+                  Use this for manual contact such as calls, messages, replies, or internal notes. Payment reminders sent through Invoice Communication are recorded automatically.
                 </p>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">

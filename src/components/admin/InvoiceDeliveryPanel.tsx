@@ -264,6 +264,47 @@ export default function InvoiceDeliveryPanel({
     ],
   );
 
+  useEffect(
+    () => {
+      function refreshDelivery(
+        event: Event,
+      ) {
+        const detail =
+          (
+            event as
+              CustomEvent<{
+                invoiceId?:
+                  string;
+              }>
+          ).detail;
+
+        if (
+          detail
+            ?.invoiceId ===
+          invoiceId
+        ) {
+          void load();
+        }
+      }
+
+      window.addEventListener(
+        "ellipsis:invoice-delivery-changed",
+        refreshDelivery,
+      );
+
+      return () => {
+        window.removeEventListener(
+          "ellipsis:invoice-delivery-changed",
+          refreshDelivery,
+        );
+      };
+    },
+    [
+      invoiceId,
+      load,
+    ],
+  );
+
   async function runAction(
     action:
       "activate" |

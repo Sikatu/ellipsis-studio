@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 
+import InvoiceCommunicationPanel from "@/components/admin/InvoiceCommunicationPanel";
 import InvoiceDeliveryPanel from "@/components/admin/InvoiceDeliveryPanel";
 import InvoiceFollowUpPanel from "@/components/admin/InvoiceFollowUpPanel";
 
@@ -865,6 +866,17 @@ export default function InvoiceDetailView({
       )}
 
       <InvoiceDeliveryPanel
+        invoiceId={
+          invoice.id
+        }
+        invoiceNumber={
+          invoice.invoice_number
+        }
+        invoiceStatus={
+          invoice.status
+        }
+      />
+      <InvoiceCommunicationPanel
         invoiceId={
           invoice.id
         }
