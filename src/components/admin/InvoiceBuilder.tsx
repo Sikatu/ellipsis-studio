@@ -75,6 +75,12 @@ type WorkspaceResponse = {
     InvoiceSummary[];
 };
 
+type ManualClientDraft = {
+  brandName: string;
+  contactName: string;
+  email: string;
+};
+
 type ClientBillingDraft = {
   billingName: string;
   companyName: string;
@@ -206,6 +212,18 @@ function emptyWorkItem():
   };
 }
 
+function emptyManualClient():
+  ManualClientDraft {
+  return {
+    brandName:
+      "",
+    contactName:
+      "",
+    email:
+      "",
+  };
+}
+
 function emptyBilling():
   ClientBillingDraft {
   return {
@@ -269,6 +287,32 @@ export default function InvoiceBuilder() {
     setSelectedClientId,
   ] =
     useState("");
+
+  const [
+    manualClientOpen,
+    setManualClientOpen,
+  ] =
+    useState(
+      false,
+    );
+
+  const [
+    creatingClient,
+    setCreatingClient,
+  ] =
+    useState(
+      false,
+    );
+
+  const [
+    manualClient,
+    setManualClient,
+  ] =
+    useState<
+      ManualClientDraft
+    >(
+      emptyManualClient(),
+    );
 
   const [
     clientBilling,
@@ -648,6 +692,168 @@ export default function InvoiceBuilder() {
       null,
     );
     setMessage("");
+  }
+
+  function updateManualClient(
+    field:
+      keyof ManualClientDraft,
+    value: string,
+  ) {
+    setManualClient(
+      (
+        current,
+      ) => ({
+        ...current,
+        [field]:
+          value,
+      }),
+    );
+  }
+
+  async function createManualClient() {
+    const brandName =
+      manualClient.brandName
+        .trim();
+
+    const contactName =
+      manualClient.contactName
+        .trim();
+
+    const email =
+      manualClient.email
+        .trim();
+
+    if (
+      !brandName &&
+      !contactName
+    ) {
+      setMessage(
+        "Add a company / brand or billing contact for the client.",
+      );
+      return;
+    }
+
+    setCreatingClient(
+      true,
+    );
+    setMessage(
+      "",
+    );
+
+    try {
+      const response =
+        await fetch(
+          "/api/admin/invoice-clients",
+          {
+            method:
+              "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body:
+              JSON.stringify({
+                brandName,
+                contactName,
+                email,
+              }),
+          },
+        );
+
+      const payload =
+        await response
+          .json() as {
+            client?:
+              ClientRecord;
+            reused?:
+              boolean;
+            error?:
+              string;
+          };
+
+      if (
+        !response.ok ||
+        !payload.client
+      ) {
+        throw new Error(
+          payload.error ||
+            "Could not create client.",
+        );
+      }
+
+      const client =
+        payload.client;
+
+      setWorkspace(
+        (
+          current,
+        ) => {
+          if (!current) {
+            return current;
+          }
+
+          const nextClients =
+            [
+              ...current.clients
+                .filter(
+                  (
+                    item,
+                  ) =>
+                    item.id !==
+                    client.id,
+                ),
+              client,
+            ]
+              .sort(
+                (
+                  left,
+                  right,
+                ) =>
+                  left.brand_name
+                    .localeCompare(
+                      right.brand_name,
+                    ),
+              );
+
+          return {
+            ...current,
+            clients:
+              nextClients,
+          };
+        },
+      );
+
+      chooseClient(
+        client,
+      );
+
+      setManualClient(
+        emptyManualClient(),
+      );
+
+      setManualClientOpen(
+        false,
+      );
+
+      setMessage(
+        payload.reused
+          ? `${client.brand_name} already existed and is now selected.`
+          : `${client.brand_name} created and selected.`,
+      );
+    } catch (
+      createError
+    ) {
+      setMessage(
+        createError instanceof
+          Error
+          ? createError.message
+          : "Could not create client.",
+      );
+    } finally {
+      setCreatingClient(
+        false,
+      );
+    }
   }
 
   function updateBilling(
@@ -1054,6 +1260,14 @@ export default function InvoiceBuilder() {
       emptyBilling(),
     );
 
+    setManualClient(
+      emptyManualClient(),
+    );
+
+    setManualClientOpen(
+      false,
+    );
+
     setItems([
       emptyWorkItem(),
     ]);
@@ -1167,10 +1381,125 @@ export default function InvoiceBuilder() {
             copy="Pick who this invoice is for."
           />
 
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[10px] leading-5 text-white/25">
+              Choose an existing client or create one directly for invoicing.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setManualClientOpen(
+                  (
+                    current,
+                  ) =>
+                    !current,
+                );
+
+                setMessage(
+                  "",
+                );
+              }}
+              className="rounded-xl border border-[#c8ad84]/15 bg-[#c8ad84]/[0.03] px-4 py-2.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-[#d8bf99]/55 transition hover:border-[#c8ad84]/30 hover:text-[#ead6b5]/75"
+            >
+              {manualClientOpen
+                ? "Cancel Manual Client"
+                : "+ Add Manual Client"}
+            </button>
+          </div>
+
+          {manualClientOpen && (
+            <div className="mt-4 rounded-2xl border border-[#c8ad84]/15 bg-[#c8ad84]/[0.025] p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#d8bf99]/50">
+                    New invoice client
+                  </p>
+
+                  <p className="mt-2 max-w-xl text-xs leading-5 text-white/30">
+                    Create a reusable client without starting a Brand Discovery project. You can complete the billing address after selecting them.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <Input
+                  label="Company / brand"
+                  value={
+                    manualClient.brandName
+                  }
+                  placeholder="Client company"
+                  onChange={(
+                    value,
+                  ) =>
+                    updateManualClient(
+                      "brandName",
+                      value,
+                    )
+                  }
+                />
+
+                <Input
+                  label="Billing contact"
+                  value={
+                    manualClient.contactName
+                  }
+                  placeholder="Client name"
+                  onChange={(
+                    value,
+                  ) =>
+                    updateManualClient(
+                      "contactName",
+                      value,
+                    )
+                  }
+                />
+
+                <Input
+                  label="Email"
+                  value={
+                    manualClient.email
+                  }
+                  type="email"
+                  placeholder="client@example.com"
+                  onChange={(
+                    value,
+                  ) =>
+                    updateManualClient(
+                      "email",
+                      value,
+                    )
+                  }
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={
+                  creatingClient ||
+                  (
+                    !manualClient.brandName
+                      .trim() &&
+                    !manualClient.contactName
+                      .trim()
+                  )
+                }
+                onClick={() =>
+                  void createManualClient()
+                }
+                className="mt-5 rounded-xl bg-[#f4f0e8] px-5 py-3 text-[9px] font-semibold uppercase tracking-[0.1em] text-[#11110f] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                {creatingClient
+                  ? "Creating..."
+                  : "Create & Select Client"}
+              </button>
+            </div>
+          )}
+
           {workspace.clients.length ===
             0 ? (
             <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-xs text-white/25">
-              No active clients yet. Brand Discovery clients will appear here automatically.
+              No active clients yet. Add a manual client above or create one through Brand Discovery.
             </div>
           ) : (
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
