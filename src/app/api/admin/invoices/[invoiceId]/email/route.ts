@@ -141,20 +141,33 @@ function trustedRequestOrigin(
   }
 
   try {
-    const expectedOrigin =
+    const suppliedOrigin =
+      new URL(
+        supplied,
+      ).origin;
+
+    const requestOrigin =
+      new URL(
+        request.url,
+      ).origin;
+
+    const configuredOrigin =
       configured
         ? new URL(
             configured,
           ).origin
-        : new URL(
-            request.url,
-          ).origin;
+        : "";
 
     return (
-      new URL(
-        supplied,
-      ).origin ===
-      expectedOrigin
+      suppliedOrigin ===
+        requestOrigin ||
+      (
+        Boolean(
+          configuredOrigin,
+        ) &&
+        suppliedOrigin ===
+          configuredOrigin
+      )
     );
   } catch {
     return false;

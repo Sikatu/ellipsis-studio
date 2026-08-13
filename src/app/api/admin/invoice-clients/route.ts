@@ -102,6 +102,13 @@ function jsonError(
 function trustedRequestOrigin(
   request: Request,
 ) {
+  const configured =
+    (
+      process.env
+        .ELLIPSIS_PUBLIC_APP_URL ??
+      ""
+    ).trim();
+
   const supplied =
     request.headers
       .get(
@@ -110,32 +117,40 @@ function trustedRequestOrigin(
       ?.trim() ??
     "";
 
-  if (!supplied) {
+  if (
+    !supplied
+  ) {
     return false;
   }
 
   try {
-    const configured =
-      (
-        process.env
-          .ELLIPSIS_PUBLIC_APP_URL ??
-        ""
-      ).trim();
+    const suppliedOrigin =
+      new URL(
+        supplied,
+      ).origin;
 
-    const expectedOrigin =
+    const requestOrigin =
+      new URL(
+        request.url,
+      ).origin;
+
+    const configuredOrigin =
       configured
         ? new URL(
             configured,
           ).origin
-        : new URL(
-            request.url,
-          ).origin;
+        : "";
 
     return (
-      new URL(
-        supplied,
-      ).origin ===
-      expectedOrigin
+      suppliedOrigin ===
+        requestOrigin ||
+      (
+        Boolean(
+          configuredOrigin,
+        ) &&
+        suppliedOrigin ===
+          configuredOrigin
+      )
     );
   } catch {
     return false;
