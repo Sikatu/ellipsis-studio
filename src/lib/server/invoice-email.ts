@@ -362,6 +362,8 @@ export function getInvoiceEmailProviderStatus() {
   const automationSecret =
     (
       process.env
+        .CRON_SECRET ??
+      process.env
         .ELLIPSIS_INVOICE_AUTOMATION_SECRET ??
       ""
     ).trim();
@@ -424,6 +426,15 @@ export function getInvoiceEmailProviderStatus() {
   ) {
     missingConfiguration.push(
       "ELLIPSIS_INVOICE_EMAIL_LIVE_CONFIRMATION",
+    );
+  }
+
+  if (
+    automationEnabled &&
+    !automationSecret
+  ) {
+    missingConfiguration.push(
+      "CRON_SECRET",
     );
   }
 

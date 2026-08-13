@@ -52,6 +52,8 @@ function authorized(
   const expected =
     (
       process.env
+        .CRON_SECRET ??
+      process.env
         .ELLIPSIS_INVOICE_AUTOMATION_SECRET ??
       ""
     ).trim();
@@ -115,7 +117,7 @@ function json(
   );
 }
 
-export async function POST(
+async function runReminderAutomation(
   request: Request,
 ) {
   const provider =
@@ -362,4 +364,19 @@ export async function POST(
     skipped,
     results,
   });
+}
+export async function GET(
+  request: Request,
+) {
+  return runReminderAutomation(
+    request,
+  );
+}
+
+export async function POST(
+  request: Request,
+) {
+  return runReminderAutomation(
+    request,
+  );
 }

@@ -1339,7 +1339,14 @@ export default function InvoiceCommunicationPanel({
             {!provider
               ?.automationRunnerReady && (
               <p className="mt-3 text-[10px] leading-5 text-amber-100/42">
-                Automatic sending stays locked until the server has the provider, public app URL, automation enable flag, automation secret, and an external scheduler calling the protected runner.
+                Automatic sending stays locked until the provider, public app URL, ELLIPSIS_INVOICE_AUTOMATION_ENABLED=true, and CRON_SECRET are configured.
+              </p>
+            )}
+
+            {provider
+              ?.automationRunnerReady && (
+              <p className="mt-3 text-[10px] leading-5 text-emerald-100/40">
+                Daily Vercel Cron is ready. On the current Hobby schedule, the selected time is the earliest eligible time; the reminder sends on the next daily runner pass after that time.
               </p>
             )}
 
