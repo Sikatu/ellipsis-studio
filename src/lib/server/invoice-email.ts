@@ -306,6 +306,29 @@ function envFlag(
   );
 }
 
+function deploymentEnvironment() {
+  const vercelEnvironment =
+    (
+      process.env
+        .VERCEL_ENV ??
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+  if (vercelEnvironment) {
+    return vercelEnvironment;
+  }
+
+  return (
+    process.env
+      .NODE_ENV ??
+    "unknown"
+  )
+    .trim()
+    .toLowerCase();
+}
+
 export function getInvoiceEmailProviderStatus() {
   const mode =
     invoiceEmailMode();
@@ -352,6 +375,24 @@ export function getInvoiceEmailProviderStatus() {
       ""
     ).trim() ===
     "I_UNDERSTAND_EMAILS_WILL_SEND";
+
+  const environment =
+    deploymentEnvironment();
+
+  const liveDeploymentAllowed =
+    mode !==
+      "live" ||
+    environment ===
+      "production";
+
+  const webhookConfigured =
+    Boolean(
+      (
+        process.env
+          .RESEND_WEBHOOK_SECRET ??
+        ""
+      ).trim(),
+    );
 
   const automationEnabled =
     envFlag(
@@ -430,6 +471,15 @@ export function getInvoiceEmailProviderStatus() {
   }
 
   if (
+    mode === "live" &&
+    !liveDeploymentAllowed
+  ) {
+    missingConfiguration.push(
+      "live invoice email requires a production deployment",
+    );
+  }
+
+  if (
     automationEnabled &&
     !automationSecret
   ) {
@@ -452,6 +502,7 @@ export function getInvoiceEmailProviderStatus() {
     Boolean(
       publicAppUrl,
     ) &&
+    liveDeploymentAllowed &&
     (
       (
         mode === "sandbox" &&
@@ -462,6 +513,23 @@ export function getInvoiceEmailProviderStatus() {
         liveConfirmed
       )
     );
+
+  const automationRunnerReady =
+    sendingEnabled &&
+    Boolean(
+      automationEnabled &&
+      automationSecret,
+    );
+
+  const productionLaunchReady =
+    environment ===
+      "production" &&
+    mode ===
+      "live" &&
+    liveDeploymentAllowed &&
+    sendingEnabled &&
+    webhookConfigured &&
+    automationRunnerReady;
 
   return {
     mode,
@@ -474,13 +542,17 @@ export function getInvoiceEmailProviderStatus() {
       Boolean(
         publicAppUrl,
       ),
+    deploymentEnvironment:
+      environment,
+    liveDeploymentAllowed,
+    webhookConfigured,
     automationEnabled,
-    automationRunnerReady:
-      sendingEnabled &&
+    automationSecretConfigured:
       Boolean(
-        automationEnabled &&
         automationSecret,
       ),
+    automationRunnerReady,
+    productionLaunchReady,
   };
 }
 
@@ -1168,6 +1240,10 @@ async function sendWithResend({
         {
           method:
             "POST",
+          signal:
+            AbortSignal.timeout(
+              15_000,
+            ),
           headers: {
             Authorization:
               `Bearer ${apiKey}`,

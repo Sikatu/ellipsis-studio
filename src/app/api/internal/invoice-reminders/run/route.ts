@@ -120,6 +120,20 @@ function json(
 async function runReminderAutomation(
   request: Request,
 ) {
+  if (
+    !authorized(
+      request,
+    )
+  ) {
+    return json(
+      {
+        error:
+          "Unauthorized",
+      },
+      401,
+    );
+  }
+
   const provider =
     getInvoiceEmailProviderStatus();
 
@@ -132,20 +146,6 @@ async function runReminderAutomation(
           "Invoice reminder automation is disabled on this server.",
       },
       503,
-    );
-  }
-
-  if (
-    !authorized(
-      request,
-    )
-  ) {
-    return json(
-      {
-        error:
-          "Unauthorized",
-      },
-      401,
     );
   }
 
@@ -366,14 +366,6 @@ async function runReminderAutomation(
   });
 }
 export async function GET(
-  request: Request,
-) {
-  return runReminderAutomation(
-    request,
-  );
-}
-
-export async function POST(
   request: Request,
 ) {
   return runReminderAutomation(
