@@ -493,15 +493,15 @@ export default function InvoiceDeliveryPanel({
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-2xl">
           <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#d8bf99]/50">
-            Secure Client Delivery
+            Client Access
           </p>
 
           <h2 className="mt-3 text-2xl font-medium tracking-[-0.04em]">
-            Share the issued invoice without exposing admin access.
+            Give the client private access to this invoice.
           </h2>
 
           <p className="mt-3 text-xs leading-6 text-white/38">
-            ELLIPSIS stores only a SHA-256 hash of the client token. A generated link is shown once; rotating or revoking it invalidates the previous client URL.
+            The client link opens a read-only invoice view and sealed PDF. For security, ELLIPSIS stores only a hash of the token, so a link can be copied only when it is first created or replaced.
           </p>
 
           {state?.invoice
@@ -536,7 +536,7 @@ export default function InvoiceDeliveryPanel({
                 busy ===
                   "activate"
                   ? "Creating..."
-                  : "Create Secure Link"
+                  : "Create Client Link"
               }
             </button>
           )}
@@ -561,7 +561,7 @@ export default function InvoiceDeliveryPanel({
                   busy ===
                     "rotate"
                     ? "Replacing..."
-                    : "Replace Link"
+                    : "Replace Client Link"
                 }
               </button>
 
@@ -582,7 +582,7 @@ export default function InvoiceDeliveryPanel({
                   busy ===
                     "revoke"
                     ? "Revoking..."
-                    : "Revoke"
+                    : "Revoke Access"
                 }
               </button>
             </>
@@ -608,7 +608,7 @@ export default function InvoiceDeliveryPanel({
                 busy ===
                   "rotate"
                   ? "Creating..."
-                  : "Create New Link"
+                  : "Create New Client Link"
               }
             </button>
           )}
@@ -634,7 +634,7 @@ export default function InvoiceDeliveryPanel({
       {shareUrl && (
         <div className="mt-6 rounded-2xl border border-emerald-200/12 bg-emerald-200/[0.025] p-4">
           <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-emerald-100/45">
-            Secure link - shown for this session
+            New client link - copy now
           </p>
 
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">
@@ -683,7 +683,7 @@ export default function InvoiceDeliveryPanel({
         "active" &&
         !shareUrl && (
         <div className="mt-6 rounded-2xl border border-white/[0.07] bg-black/10 px-4 py-4 text-xs leading-6 text-white/34">
-          A secure link is active. For security, the plaintext token cannot be revealed again after this page session. Replace the link when you need a fresh copy.
+          Client access is active. The existing URL cannot be revealed again because ELLIPSIS does not store the plaintext token. Replace the client link only when you need a fresh copy or want to invalidate the previous URL.
         </div>
       )}
 

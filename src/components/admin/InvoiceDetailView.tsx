@@ -97,6 +97,215 @@ function displayStatus(
   return invoice.status;
 }
 
+function daysUntil(
+  value: string,
+) {
+  const targetParts =
+    value
+      .split("-")
+      .map(
+        Number,
+      );
+
+  const todayParts =
+    localDateString()
+      .split("-")
+      .map(
+        Number,
+      );
+
+  if (
+    targetParts.length !==
+      3 ||
+    todayParts.length !==
+      3 ||
+    targetParts.some(
+      (
+        part,
+      ) =>
+        !Number.isFinite(
+          part,
+        ),
+    ) ||
+    todayParts.some(
+      (
+        part,
+      ) =>
+        !Number.isFinite(
+          part,
+        ),
+    )
+  ) {
+    return null;
+  }
+
+  const target =
+    Date.UTC(
+      targetParts[0],
+      targetParts[1] - 1,
+      targetParts[2],
+    );
+
+  const today =
+    Date.UTC(
+      todayParts[0],
+      todayParts[1] - 1,
+      todayParts[2],
+    );
+
+  return Math.round(
+    (
+      target -
+      today
+    ) /
+      86_400_000,
+  );
+}
+
+function statusPresentation(
+  invoice:
+    InvoiceRecord,
+  status:
+    InvoiceStatus |
+    "overdue",
+) {
+  if (
+    status ===
+    "paid"
+  ) {
+    return {
+      label:
+        "Paid",
+      title:
+        "Payment complete",
+      detail:
+        invoice.paid_at
+          ? `Payment recorded ${formatDate(invoice.paid_at)}. The sealed invoice PDF remains unchanged.`
+          : "Payment has been recorded. The sealed invoice PDF remains unchanged.",
+      badge:
+        "border-emerald-200/18 bg-emerald-200/[0.045] text-emerald-100/70",
+      panel:
+        "border-emerald-200/12 bg-emerald-200/[0.025]",
+      text:
+        "text-emerald-100/58",
+    };
+  }
+
+  if (
+    status ===
+    "void"
+  ) {
+    return {
+      label:
+        "Void",
+      title:
+        "Invoice closed",
+      detail:
+        "This invoice is void. Any sealed issued PDF remains preserved only as historical record.",
+      badge:
+        "border-rose-200/18 bg-rose-200/[0.035] text-rose-100/62",
+      panel:
+        "border-rose-200/12 bg-rose-200/[0.02]",
+      text:
+        "text-rose-100/50",
+    };
+  }
+
+  if (
+    status ===
+    "overdue"
+  ) {
+    const days =
+      daysUntil(
+        invoice.due_date,
+      );
+
+    const overdueDays =
+      days ===
+        null
+        ? null
+        : Math.max(
+            1,
+            Math.abs(
+              days,
+            ),
+          );
+
+    return {
+      label:
+        "Overdue",
+      title:
+        "Payment overdue",
+      detail:
+        overdueDays
+          ? `Payment was due ${formatDate(invoice.due_date)} and is ${overdueDays} ${overdueDays === 1 ? "day" : "days"} overdue.`
+          : `Payment was due ${formatDate(invoice.due_date)}.`,
+      badge:
+        "border-amber-200/20 bg-amber-200/[0.045] text-amber-100/72",
+      panel:
+        "border-amber-200/12 bg-amber-200/[0.025]",
+      text:
+        "text-amber-100/58",
+    };
+  }
+
+  if (
+    status ===
+    "issued"
+  ) {
+    const days =
+      daysUntil(
+        invoice.due_date,
+      );
+
+    let timing =
+      `Due ${formatDate(invoice.due_date)}.`;
+
+    if (days === 0) {
+      timing =
+        "Payment is due today.";
+    } else if (
+      days !==
+        null &&
+      days >
+        0
+    ) {
+      timing =
+        `Payment is due ${formatDate(invoice.due_date)} in ${days} ${days === 1 ? "day" : "days"}.`;
+    }
+
+    return {
+      label:
+        "Issued",
+      title:
+        "Awaiting payment",
+      detail:
+        `${timing} Client delivery and payment reminders remain available.`,
+      badge:
+        "border-[#c8ad84]/22 bg-[#c8ad84]/[0.045] text-[#ead6b5]/72",
+      panel:
+        "border-[#c8ad84]/14 bg-[#c8ad84]/[0.025]",
+      text:
+        "text-[#ead6b5]/58",
+    };
+  }
+
+  return {
+    label:
+      "Draft",
+    title:
+      "Draft in progress",
+    detail:
+      "Review billing details, work items, and totals before issuing. Issuing seals the final PDF.",
+    badge:
+      "border-white/12 bg-white/[0.025] text-white/45",
+    panel:
+      "border-white/[0.08] bg-white/[0.018]",
+    text:
+      "text-white/38",
+  };
+}
+
 function snapshotValue(
   snapshot: unknown,
   key: string,
@@ -726,6 +935,12 @@ export default function InvoiceDetailView({
       invoice,
     );
 
+  const statusState =
+    statusPresentation(
+      invoice,
+      status,
+    );
+
   const senderName =
     partyName(
       invoice.sender_snapshot,
@@ -772,8 +987,15 @@ export default function InvoiceDetailView({
               Invoice Detail
             </p>
 
-            <span className="rounded-full border border-white/10 px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-white/35">
-              {status}
+            <span
+              className={[
+                "rounded-full border px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.12em]",
+                statusState.badge,
+              ].join(
+                " ",
+              )}
+            >
+              {statusState.label}
             </span>
           </div>
 
@@ -864,6 +1086,51 @@ export default function InvoiceDetailView({
           {message}
         </div>
       )}
+
+      <div
+        className={[
+          "mt-6 rounded-[22px] border px-5 py-4",
+          statusState.panel,
+        ].join(
+          " ",
+        )}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[8px] font-semibold uppercase tracking-[0.13em] text-white/24">
+              Invoice state
+            </p>
+
+            <p className="mt-2 text-sm font-medium text-white/68">
+              {statusState.title}
+            </p>
+
+            <p
+              className={[
+                "mt-1 text-xs leading-5",
+                statusState.text,
+              ].join(
+                " ",
+              )}
+            >
+              {statusState.detail}
+            </p>
+          </div>
+
+          <div className="sm:text-right">
+            <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-white/22">
+              Total
+            </p>
+
+            <p className="mt-1 text-lg font-medium tracking-[-0.025em] text-white/68">
+              {money(
+                invoice.total_cents,
+                invoice.currency,
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
 
       <InvoiceDeliveryPanel
         invoiceId={
@@ -1039,33 +1306,44 @@ export default function InvoiceDetailView({
             )}
           </div>
 
-          <div className="grid gap-5 md:grid-cols-2">
-            <div className="rounded-[24px] border border-white/[0.07] bg-[#161612] p-6">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-white/30">
-                Payment instructions
-              </p>
+          {(invoice.payment_instructions_snapshot ||
+            invoice.notes) && (
+            <div
+              className={[
+                "grid gap-5",
+                invoice.payment_instructions_snapshot &&
+                invoice.notes
+                  ? "md:grid-cols-2"
+                  : "",
+              ].join(
+                " ",
+              )}
+            >
+              {invoice.payment_instructions_snapshot && (
+                <div className="rounded-[24px] border border-white/[0.07] bg-[#161612] p-6">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-white/30">
+                    Payment instructions
+                  </p>
 
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/38">
-                {
-                  invoice.payment_instructions_snapshot ||
-                  "No payment instructions saved."
-                }
-              </p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/38">
+                    {invoice.payment_instructions_snapshot}
+                  </p>
+                </div>
+              )}
+
+              {invoice.notes && (
+                <div className="rounded-[24px] border border-white/[0.07] bg-[#161612] p-6">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-white/30">
+                    Note
+                  </p>
+
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/38">
+                    {invoice.notes}
+                  </p>
+                </div>
+              )}
             </div>
-
-            <div className="rounded-[24px] border border-white/[0.07] bg-[#161612] p-6">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-white/30">
-                Note
-              </p>
-
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/38">
-                {
-                  invoice.notes ||
-                  "No invoice note."
-                }
-              </p>
-            </div>
-          </div>
+          )}
         </div>
 
         <aside className="space-y-5">

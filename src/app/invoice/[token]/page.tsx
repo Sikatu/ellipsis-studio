@@ -245,6 +245,23 @@ export default async function SecureInvoicePage({
       invoice.client_snapshot,
     );
 
+  const hasPaymentInstructions =
+    Boolean(
+      invoice
+        .payment_instructions_snapshot
+        ?.trim(),
+    );
+
+  const hasInvoiceNotes =
+    Boolean(
+      invoice.notes
+        ?.trim(),
+    );
+
+  const paymentComplete =
+    invoice.status ===
+      "paid";
+
   return (
     <main className="min-h-screen bg-[#11110f] px-5 py-10 text-[#f4f0e8] sm:px-8 sm:py-16">
       <div className="mx-auto w-full max-w-5xl">
@@ -278,7 +295,9 @@ export default async function SecureInvoicePage({
               " ",
             )}>
               {
-                invoice.status
+                paymentComplete
+                  ? "Paid"
+                  : "Payment due"
               }
             </span>
 
@@ -427,35 +446,45 @@ export default async function SecureInvoicePage({
           )}
         </section>
 
-        <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
-          <div className="space-y-5">
-            <div className="rounded-[24px] border border-white/[0.07] bg-[#161612] p-6">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/28">
-                Payment instructions
-              </p>
+        <section
+          className={[
+            "mt-5 grid gap-5",
+            hasPaymentInstructions ||
+            hasInvoiceNotes
+              ? "lg:grid-cols-[1fr_320px]"
+              : "lg:grid-cols-[320px] lg:justify-end",
+          ].join(
+            " ",
+          )}
+        >
+          {(hasPaymentInstructions ||
+            hasInvoiceNotes) && (
+            <div className="space-y-5">
+              {hasPaymentInstructions && (
+                <div className="rounded-[24px] border border-white/[0.07] bg-[#161612] p-6">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/28">
+                    Payment instructions
+                  </p>
 
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/42">
-                {
-                  invoice.payment_instructions_snapshot ||
-                  "No payment instructions provided."
-                }
-              </p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/42">
+                    {invoice.payment_instructions_snapshot}
+                  </p>
+                </div>
+              )}
+
+              {hasInvoiceNotes && (
+                <div className="rounded-[24px] border border-white/[0.07] bg-[#161612] p-6">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/28">
+                    Note
+                  </p>
+
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/42">
+                    {invoice.notes}
+                  </p>
+                </div>
+              )}
             </div>
-
-            {invoice.notes && (
-              <div className="rounded-[24px] border border-white/[0.07] bg-[#161612] p-6">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/28">
-                  Note
-                </p>
-
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/42">
-                  {
-                    invoice.notes
-                  }
-                </p>
-              </div>
-            )}
-          </div>
+          )}
 
           <aside className="space-y-5">
             <div className="rounded-[24px] border border-[#c8ad84]/15 bg-[#c8ad84]/[0.035] p-6">

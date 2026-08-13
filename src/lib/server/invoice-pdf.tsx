@@ -229,6 +229,11 @@ const styles =
         16,
     },
 
+    infoColumnFull: {
+      width:
+        "100%",
+    },
+
     infoColumnRight: {
       width:
         "50%",
@@ -508,6 +513,11 @@ const styles =
         "50%",
       paddingRight:
         16,
+    },
+
+    notesColumnFull: {
+      width:
+        "100%",
     },
 
     notesColumnRight: {
@@ -1113,7 +1123,10 @@ function InvoiceDocument({
         >
           <View
             style={
-              styles.infoColumn
+              senderAddress.length >
+              0
+                ? styles.infoColumn
+                : styles.infoColumnFull
             }
           >
             <Text
@@ -1182,22 +1195,22 @@ function InvoiceDocument({
             )}
           </View>
 
-          <View
-            style={
-              styles.infoColumnRight
-            }
-          >
-            <Text
+          {senderAddress.length >
+            0 && (
+            <View
               style={
-                styles.sectionEyebrow
+                styles.infoColumnRight
               }
             >
-              Sender Address
-            </Text>
+              <Text
+                style={
+                  styles.sectionEyebrow
+                }
+              >
+                Sender Address
+              </Text>
 
-            {senderAddress.length >
-            0 ? (
-              senderAddress.map(
+              {senderAddress.map(
                 (
                   line,
                 ) => (
@@ -1212,17 +1225,9 @@ function InvoiceDocument({
                     {line}
                   </Text>
                 ),
-              )
-            ) : (
-              <Text
-                style={
-                  styles.detailLine
-                }
-              >
-                Address not provided
-              </Text>
-            )}
-          </View>
+              )}
+            </View>
+          )}
         </View>
 
         <View
@@ -1563,51 +1568,57 @@ function InvoiceDocument({
               styles.notesGrid
             }
           >
-            <View
-              style={
-                styles.notesColumn
-              }
-            >
-              <Text
+            {hasPayment && (
+              <View
                 style={
-                  styles.sectionEyebrow
+                  hasNotes
+                    ? styles.notesColumn
+                    : styles.notesColumnFull
                 }
               >
-                Payment
-              </Text>
+                <Text
+                  style={
+                    styles.sectionEyebrow
+                  }
+                >
+                  Payment
+                </Text>
 
-              <Text
-                style={
-                  styles.noteText
-                }
-              >
-                {hasPayment ||
-                  "No payment instructions provided."}
-              </Text>
-            </View>
+                <Text
+                  style={
+                    styles.noteText
+                  }
+                >
+                  {hasPayment}
+                </Text>
+              </View>
+            )}
 
-            <View
-              style={
-                styles.notesColumnRight
-              }
-            >
-              <Text
+            {hasNotes && (
+              <View
                 style={
-                  styles.sectionEyebrow
+                  hasPayment
+                    ? styles.notesColumnRight
+                    : styles.notesColumnFull
                 }
               >
-                Note
-              </Text>
+                <Text
+                  style={
+                    styles.sectionEyebrow
+                  }
+                >
+                  Note
+                </Text>
 
-              <Text
-                style={
-                  styles.noteText
-                }
-              >
-                {hasNotes ||
-                  "No additional note."}
-              </Text>
-            </View>
+                <Text
+                  style={
+                    styles.noteText
+                  }
+                >
+                  {hasNotes}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
