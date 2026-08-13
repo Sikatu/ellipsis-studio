@@ -5,6 +5,7 @@ import LogoutButton from "@/components/admin/LogoutButton";
 type StudioNavProps = {
   active:
     | "studio"
+    | "clients"
     | "brand"
     | "invoices";
 };
@@ -14,6 +15,11 @@ const links = [
     id: "studio",
     href: "/admin",
     label: "Studio Home",
+  },
+  {
+    id: "clients",
+    href: "/admin/clients",
+    label: "Clients",
   },
   {
     id: "brand",

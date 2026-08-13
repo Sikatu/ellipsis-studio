@@ -64,6 +64,10 @@ export default async function AdminPage() {
       .select(
         "id, brand_name, contact_name, email, created_at",
       )
+      .eq(
+        "status",
+        "active",
+      )
       .order("created_at", {
         ascending: false,
       }),
