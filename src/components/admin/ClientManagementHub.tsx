@@ -205,6 +205,51 @@ function formatDate(
     return "Not yet";
   }
 
+  const dateOnly =
+    /^(\d{4})-(\d{2})-(\d{2})$/
+      .exec(
+        value,
+      );
+
+  if (dateOnly) {
+    const year =
+      Number(
+        dateOnly[1],
+      );
+
+    const month =
+      Number(
+        dateOnly[2],
+      ) - 1;
+
+    const day =
+      Number(
+        dateOnly[3],
+      );
+
+    return new Intl.DateTimeFormat(
+      undefined,
+      {
+        year:
+          "numeric",
+        month:
+          "short",
+        day:
+          "numeric",
+        timeZone:
+          "UTC",
+      },
+    ).format(
+      new Date(
+        Date.UTC(
+          year,
+          month,
+          day,
+        ),
+      ),
+    );
+  }
+
   const date =
     new Date(
       value,
@@ -988,7 +1033,7 @@ export default function ClientManagementHub({
                         {record.contact_name ||
                           "No contact name"}
                         {record.email
-                          ? ` Â· ${record.email}`
+                          ? ` / ${record.email}`
                           : ""}
                       </p>
                     </div>
@@ -999,7 +1044,7 @@ export default function ClientManagementHub({
                       </p>
 
                       <p className="mt-2 text-xs text-white/48">
-                        {record.discoveryCount} discovery Â· {record.invoices.length} invoices
+                        {record.discoveryCount} {record.discoveryCount === 1 ? "discovery" : "discoveries"} / {record.invoices.length} {record.invoices.length === 1 ? "invoice" : "invoices"}
                       </p>
                     </div>
 
@@ -1010,7 +1055,7 @@ export default function ClientManagementHub({
 
                       <p className="mt-2 text-xs text-white/48">
                         {latestInvoice
-                          ? `${latestInvoice.invoice_number} Â· ${money(latestInvoice.total_cents, latestInvoice.currency)}`
+                          ? `${latestInvoice.invoice_number} / ${money(latestInvoice.total_cents, latestInvoice.currency)}`
                           : "None yet"}
                       </p>
                     </div>
@@ -1431,7 +1476,7 @@ export default function ClientManagementHub({
                             href="/admin/invoices/new"
                             className="text-[9px] uppercase tracking-[0.08em] text-[#d8bf99]/50 hover:text-[#ead6b5]/70"
                           >
-                            New invoice â†’
+                            New invoice &gt;
                           </Link>
                         </div>
 
@@ -1479,7 +1524,7 @@ export default function ClientManagementHub({
                                   </p>
 
                                   <span className="text-[9px] text-[#d8bf99]/40">
-                                    Open â†’
+                                    Open &gt;
                                   </span>
                                 </Link>
                               ),
