@@ -1,336 +1,311 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import {
+  redirect,
+} from "next/navigation";
 
-import AdminRealtimeRefresh from "@/components/admin/AdminRealtimeRefresh";
-import CreateDiscovery from "@/components/admin/CreateDiscovery";
-import LogoutButton from "@/components/admin/LogoutButton";
-import { createClient } from "@/lib/supabase/server";
+import StudioNav from "@/components/admin/StudioNav";
+import {
+  createClient,
+} from "@/lib/supabase/server";
 
-type ClientRecord = {
-  id: string;
-  brand_name: string;
-  contact_name: string | null;
-  email: string | null;
-  created_at: string;
+export const metadata = {
+  title: "Studio Home",
 };
 
-type ProjectRecord = {
-  id: string;
-  client_id: string;
-  title: string;
-  status: string;
-  progress: number;
-  updated_at: string;
-  submitted_at: string | null;
-};
-
-function statusLabel(
-  status: string | undefined,
-) {
-  if (!status) {
-    return "No project";
-  }
-
-  return status
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (character) =>
-      character.toUpperCase(),
-    );
-}
-
-export default async function AdminPage() {
-  const supabase = await createClient();
+async function requireAdmin() {
+  const supabase =
+    await createClient();
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: {
+      user,
+    },
+  } =
+    await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/admin/login");
+    redirect(
+      "/admin/login",
+    );
   }
+
+  const {
+    data: profile,
+  } =
+    await supabase
+      .from(
+        "admin_profiles",
+      )
+      .select(
+        "user_id",
+      )
+      .eq(
+        "user_id",
+        user.id,
+      )
+      .maybeSingle();
+
+  if (!profile) {
+    redirect(
+      "/admin/login",
+    );
+  }
+
+  return {
+    supabase,
+    user,
+  };
+}
+
+export default async function StudioHomePage() {
+  const {
+    supabase,
+  } =
+    await requireAdmin();
 
   const [
-    {
-      data: clients,
-      error: clientError,
-    },
-    {
-      data: projects,
-      error: projectError,
-    },
-  ] = await Promise.all([
-    supabase
-      .from("clients")
-      .select(
-        "id, brand_name, contact_name, email, created_at",
-      )
-      .order("created_at", {
-        ascending: false,
-      }),
+    clientsResult,
+    projectsResult,
+    deliverablesResult,
+  ] =
+    await Promise.all([
+      supabase
+        .from(
+          "clients",
+        )
+        .select(
+          "id",
+          {
+            count:
+              "exact",
+            head:
+              true,
+          },
+        ),
 
-    supabase
-      .from("discovery_projects")
-      .select(
-        "id, client_id, title, status, progress, updated_at, submitted_at",
-      )
-      .order("updated_at", {
-        ascending: false,
-      }),
-  ]);
+      supabase
+        .from(
+          "discovery_projects",
+        )
+        .select(
+          "id",
+          {
+            count:
+              "exact",
+            head:
+              true,
+          },
+        ),
 
-  const clientRows =
-    (clients ?? []) as ClientRecord[];
+      supabase
+        .from(
+          "brand_deliverables",
+        )
+        .select(
+          "id",
+          {
+            count:
+              "exact",
+            head:
+              true,
+          },
+        ),
+    ]);
 
-  const projectRows =
-    (projects ?? []) as ProjectRecord[];
+  const clientCount =
+    clientsResult.count ??
+    0;
 
-  const projectByClient =
-    new Map<string, ProjectRecord>();
+  const projectCount =
+    projectsResult.count ??
+    0;
 
-  for (const project of projectRows) {
-    if (
-      !projectByClient.has(
-        project.client_id,
-      )
-    ) {
-      projectByClient.set(
-        project.client_id,
-        project,
-      );
-    }
-  }
-
-  const latestProjects = Array.from(
-    projectByClient.values(),
-  );
-
-  const submitted =
-    latestProjects.filter(
-      (project) =>
-        project.status === "submitted",
-    ).length;
-
-  const inProgress =
-    latestProjects.filter((project) =>
-      [
-        "sent",
-        "in_progress",
-      ].includes(project.status),
-    ).length;
+  const deliverableCount =
+    deliverablesResult.count ??
+    0;
 
   return (
-    <main className="min-h-screen bg-[#11110f] text-[#f5f0e6]">
-      <AdminRealtimeRefresh />
+    <main className="min-h-screen bg-[#11110f] text-[#f4f0e8]">
+      <StudioNav active="studio" />
 
-      <div className="mx-auto max-w-[1500px] px-5 py-6 sm:px-8 sm:py-8">
-        <header className="flex items-center justify-between border-b border-white/10 pb-6">
+      <div className="mx-auto w-full max-w-7xl px-6 pb-20 pt-12 sm:px-8 lg:px-10 lg:pt-16">
+        <section className="max-w-3xl">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#c8ad84]/55">
+            Your workspace
+          </p>
+
+          <h1 className="mt-5 max-w-2xl text-4xl font-medium tracking-[-0.045em] text-[#f4f0e8] sm:text-5xl lg:text-6xl">
+            What would you like to work on?
+          </h1>
+
+          <p className="mt-5 max-w-2xl text-sm leading-7 text-white/35 sm:text-base">
+            Keep client work in one calm place. Open a tool, finish the task, and let ELLIPSIS handle the structure around it.
+          </p>
+        </section>
+
+        <section className="mt-10 grid gap-5 lg:grid-cols-2">
           <Link
-            href="/"
-            className="text-xs font-semibold tracking-[0.24em] uppercase"
+            href="/admin/brand-discovery"
+            className="group rounded-[28px] border border-white/[0.08] bg-[#161612] p-7 transition hover:-translate-y-0.5 hover:border-[#c8ad84]/25 hover:bg-[#181813] sm:p-8"
           >
-            Ellipsis
+            <div className="flex items-start justify-between gap-5">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#c8ad84]/55">
+                  Tool 01
+                </p>
+
+                <h2 className="mt-5 text-2xl font-medium tracking-[-0.035em] text-white/80">
+                  Brand Discovery
+                </h2>
+
+                <p className="mt-3 max-w-md text-sm leading-7 text-white/30">
+                  Strategy, creative direction, visual systems, reports and client delivery in one guided workflow.
+                </p>
+              </div>
+
+              <span className="rounded-full border border-white/10 px-3 py-1.5 text-[9px] uppercase tracking-[0.12em] text-white/30">
+                {projectCount} projects
+              </span>
+            </div>
+
+            <div className="mt-10 flex items-center justify-between border-t border-white/[0.06] pt-5">
+              <span className="text-xs text-white/25">
+                Continue your brand work
+              </span>
+
+              <span className="text-xs text-[#d8bf99]/55 transition group-hover:translate-x-1">
+                Open tool →
+              </span>
+            </div>
           </Link>
 
-          <div className="flex items-center gap-6">
-            <span className="hidden text-xs text-white/30 sm:block">
-              {user.email}
-            </span>
+          <Link
+            href="/admin/invoices"
+            className="group rounded-[28px] border border-[#c8ad84]/15 bg-[#f4f0e8] p-7 text-[#11110f] transition hover:-translate-y-0.5 sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-5">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8b6f49]">
+                  Tool 02
+                </p>
 
-            <LogoutButton />
-          </div>
-        </header>
+                <h2 className="mt-5 text-2xl font-medium tracking-[-0.035em]">
+                  Invoice Generator
+                </h2>
 
-        <section className="py-12 sm:py-16">
-          <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
-            <div>
-              <p className="mb-4 text-xs font-semibold tracking-[0.22em] text-[#c5a577] uppercase">
-                Brand Discovery
-              </p>
+                <p className="mt-3 max-w-md text-sm leading-7 text-black/45">
+                  Choose a client, add the work you completed, review the total, and generate a polished invoice.
+                </p>
+              </div>
 
-              <h1 className="text-4xl font-medium tracking-[-0.04em] sm:text-6xl">
-                Client discoveries.
-              </h1>
-
-              <p className="mt-5 max-w-xl text-sm leading-7 text-white/45">
-                Create private client discoveries,
-                track progress, and review strategic
-                brand intelligence from one place.
-              </p>
+              <span className="rounded-full border border-black/10 px-3 py-1.5 text-[9px] uppercase tracking-[0.12em] text-black/40">
+                New
+              </span>
             </div>
 
-            <CreateDiscovery
-              userId={user.id}
-            />
+            <div className="mt-10 flex items-center justify-between border-t border-black/[0.08] pt-5">
+              <span className="text-xs text-black/35">
+                Simple 3-step flow
+              </span>
+
+              <span className="text-xs font-medium transition group-hover:translate-x-1">
+                Create invoice →
+              </span>
+            </div>
+          </Link>
+        </section>
+
+        <section className="mt-8 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+            <p className="text-[9px] uppercase tracking-[0.14em] text-white/20">
+              Clients
+            </p>
+
+            <p className="mt-3 text-2xl font-medium tracking-[-0.03em] text-white/65">
+              {clientCount}
+            </p>
+
+            <p className="mt-2 text-xs leading-5 text-white/25">
+              Existing people and brands in your workspace.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+            <p className="text-[9px] uppercase tracking-[0.14em] text-white/20">
+              Brand projects
+            </p>
+
+            <p className="mt-3 text-2xl font-medium tracking-[-0.03em] text-white/65">
+              {projectCount}
+            </p>
+
+            <p className="mt-2 text-xs leading-5 text-white/25">
+              Discovery projects currently stored in ELLIPSIS.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+            <p className="text-[9px] uppercase tracking-[0.14em] text-white/20">
+              Issued documents
+            </p>
+
+            <p className="mt-3 text-2xl font-medium tracking-[-0.03em] text-white/65">
+              {deliverableCount}
+            </p>
+
+            <p className="mt-2 text-xs leading-5 text-white/25">
+              Studio documents already preserved for delivery.
+            </p>
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6">
-            <p className="text-xs tracking-[0.16em] text-white/35 uppercase">
-              Total clients
-            </p>
+        <section className="mt-10 rounded-[24px] border border-white/[0.07] bg-white/[0.015] p-6 sm:p-7">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/22">
+            How ELLIPSIS Studio works
+          </p>
 
-            <p className="mt-6 text-4xl font-medium">
-              {clientRows.length}
-            </p>
+          <div className="mt-5 grid gap-5 md:grid-cols-3">
+            {[
+              [
+                "01",
+                "Choose a tool",
+                "Start with the job you need to finish, not a complicated dashboard.",
+              ],
+              [
+                "02",
+                "Work with a client",
+                "Reuse client information across Brand Discovery, invoices, and future tools.",
+              ],
+              [
+                "03",
+                "Create the output",
+                "ELLIPSIS keeps the process organized while you focus on the actual client work.",
+              ],
+            ].map(
+              ([
+                number,
+                title,
+                copy,
+              ]) => (
+                <div
+                  key={number}
+                  className="border-t border-white/[0.06] pt-4"
+                >
+                  <p className="text-[9px] font-semibold tracking-[0.12em] text-[#c8ad84]/45">
+                    {number}
+                  </p>
+
+                  <p className="mt-3 text-sm font-medium text-white/55">
+                    {title}
+                  </p>
+
+                  <p className="mt-2 text-xs leading-6 text-white/25">
+                    {copy}
+                  </p>
+                </div>
+              ),
+            )}
           </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6">
-            <p className="text-xs tracking-[0.16em] text-white/35 uppercase">
-              In progress
-            </p>
-
-            <p className="mt-6 text-4xl font-medium">
-              {inProgress}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-[#b89361]/20 bg-[#b89361]/[0.06] p-6">
-            <p className="text-xs tracking-[0.16em] text-[#c9a777] uppercase">
-              Submitted
-            </p>
-
-            <p className="mt-6 text-4xl font-medium">
-              {submitted}
-            </p>
-          </div>
-        </section>
-
-        {(clientError ||
-          projectError) && (
-          <div className="mt-8 rounded-2xl border border-red-400/15 bg-red-400/[0.05] p-5 text-sm text-red-200">
-            Database request error:{" "}
-            {clientError?.message ??
-              projectError?.message}
-          </div>
-        )}
-
-        <section className="mt-12">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-medium">
-                Clients
-              </h2>
-
-              <p className="mt-1 text-xs text-white/30">
-                Select a client to open their
-                intelligence workspace.
-              </p>
-            </div>
-
-            <span className="text-xs text-white/30">
-              {clientRows.length} records
-            </span>
-          </div>
-
-          {clientRows.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-white/15 px-6 py-20 text-center">
-              <p className="text-lg font-medium">
-                Your client database is empty.
-              </p>
-
-              <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-white/40">
-                Create your first Brand Discovery
-                and the client will appear here.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-3xl border border-white/10">
-              {clientRows.map(
-                (client, index) => {
-                  const project =
-                    projectByClient.get(
-                      client.id,
-                    );
-
-                  return (
-                    <Link
-                      key={client.id}
-                      href={`/admin/clients/${client.id}`}
-                      className={`group grid gap-6 p-6 transition duration-200 hover:bg-white/[0.04] md:grid-cols-[1.35fr_.7fr_.75fr_.65fr_auto] md:items-center ${
-                        index !==
-                        clientRows.length - 1
-                          ? "border-b border-white/10"
-                          : ""
-                      }`}
-                    >
-                      <div>
-                        <p className="text-base font-medium transition group-hover:text-[#dec59f]">
-                          {client.brand_name}
-                        </p>
-
-                        <p className="mt-1 text-xs text-white/35">
-                          {client.contact_name ||
-                            client.email ||
-                            "No contact details"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-white/30">
-                          Progress
-                        </p>
-
-                        <div className="mt-2 flex items-center gap-3">
-                          <div className="h-1 w-16 overflow-hidden rounded-full bg-white/10">
-                            <div
-                              className="h-full rounded-full bg-[#c5a577]"
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  Math.max(
-                                    0,
-                                    project?.progress ??
-                                      0,
-                                  ),
-                                )}%`,
-                              }}
-                            />
-                          </div>
-
-                          <p className="text-sm font-medium">
-                            {project?.progress ??
-                              0}
-                            %
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-white/30">
-                          Status
-                        </p>
-
-                        <p className="mt-1 text-sm font-medium text-[#c9a777]">
-                          {statusLabel(
-                            project?.status,
-                          )}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-white/30">
-                          Created
-                        </p>
-
-                        <p className="mt-1 text-sm text-white/65">
-                          {new Date(
-                            client.created_at,
-                          ).toLocaleDateString()}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-end">
-                        <span className="text-sm text-white/25 transition group-hover:translate-x-1 group-hover:text-[#c9a777]">
-                          Open →
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                },
-              )}
-            </div>
-          )}
         </section>
       </div>
     </main>

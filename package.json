@@ -6,7 +6,8 @@
         "dev": "next dev",
         "build": "next build",
         "start": "next start",
-        "lint": "eslint src"
+        "lint": "eslint src",
+        "audit:invoice-release": "node scripts/check-invoice-release.mjs"
     },
     "dependencies": {
         "@react-pdf/renderer": "^4.5.1",
