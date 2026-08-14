@@ -427,4 +427,3 @@ revoke execute
 grant execute
   on function private.unsync_workspace_owner_from_admin_profile()
   to service_role;
-
