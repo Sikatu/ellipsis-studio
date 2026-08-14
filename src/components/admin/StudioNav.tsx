@@ -6,6 +6,7 @@ type StudioNavProps = {
   active:
     | "studio"
     | "clients"
+    | "projects"
     | "brand"
     | "invoices";
 };
@@ -20,6 +21,11 @@ const links = [
     id: "clients",
     href: "/admin/clients",
     label: "Clients",
+  },
+  {
+    id: "projects",
+    href: "/admin/projects",
+    label: "Projects",
   },
   {
     id: "brand",
