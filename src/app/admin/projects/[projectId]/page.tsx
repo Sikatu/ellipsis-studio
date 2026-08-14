@@ -4,6 +4,7 @@ import {
   redirect,
 } from "next/navigation";
 
+import ProjectWorkboard from "@/components/admin/ProjectWorkboard";
 import ProjectWorkspaceEditor from "@/components/admin/ProjectWorkspaceEditor";
 import StudioNav from "@/components/admin/StudioNav";
 import {
@@ -202,6 +203,9 @@ export default async function ProjectDetailPage({
     clientResult,
     ownerDetailsResult,
     invoicesResult,
+    tasksResult,
+    milestonesResult,
+    membersResult,
   ] =
     await Promise.all([
       supabase
@@ -251,12 +255,82 @@ export default async function ProjectDetailPage({
         .limit(
           6,
         ),
+
+      supabase
+        .from(
+          "studio_project_tasks",
+        )
+        .select(
+          "id,project_id,milestone_id,assignee_member_id,title,description,status,priority,due_date,sort_order,completed_at,created_at,updated_at",
+        )
+        .eq(
+          "project_id",
+          project.id,
+        )
+        .order(
+          "sort_order",
+          {
+            ascending:
+              true,
+          },
+        )
+        .order(
+          "created_at",
+          {
+            ascending:
+              true,
+          },
+        ),
+
+      supabase
+        .from(
+          "studio_project_milestones",
+        )
+        .select(
+          "id,project_id,title,description,due_date,completed_at,sort_order,created_at,updated_at",
+        )
+        .eq(
+          "project_id",
+          project.id,
+        )
+        .order(
+          "sort_order",
+          {
+            ascending:
+              true,
+          },
+        )
+        .order(
+          "created_at",
+          {
+            ascending:
+              true,
+          },
+        ),
+
+      supabase
+        .from(
+          "workspace_members",
+        )
+        .select(
+          "id,display_name,role,status",
+        )
+        .order(
+          "display_name",
+          {
+            ascending:
+              true,
+          },
+        ),
     ]);
 
   const firstError =
     clientResult.error ||
     ownerDetailsResult.error ||
-    invoicesResult.error;
+    invoicesResult.error ||
+    tasksResult.error ||
+    milestonesResult.error ||
+    membersResult.error;
 
   if (firstError) {
     throw new Error(
@@ -273,6 +347,18 @@ export default async function ProjectDetailPage({
 
   const invoices =
     invoicesResult.data ??
+    [];
+
+  const tasks =
+    tasksResult.data ??
+    [];
+
+  const milestones =
+    milestonesResult.data ??
+    [];
+
+  const workspaceMembers =
+    membersResult.data ??
     [];
 
   return (
@@ -578,24 +664,28 @@ export default async function ProjectDetailPage({
           }
         />
 
+        <ProjectWorkboard
+          projectId={
+            project.id
+          }
+          archived={
+            Boolean(
+              project.archived_at,
+            )
+          }
+          initialTasks={
+            tasks
+          }
+          initialMilestones={
+            milestones
+          }
+          members={
+            workspaceMembers
+          }
+        />
+
         <section className="mt-10 grid gap-4 md:grid-cols-2">
           {[
-            {
-              title:
-                "Tasks",
-              phase:
-                "S12.3",
-              description:
-                "Assignments, due dates, priority, ordering, and completion will live here.",
-            },
-            {
-              title:
-                "Milestones",
-              phase:
-                "S12.3",
-              description:
-                "Major project checkpoints and milestone completion will live here.",
-            },
             {
               title:
                 "Deliverables",
