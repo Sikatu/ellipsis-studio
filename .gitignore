@@ -45,3 +45,5 @@ release-audits/
 tsconfig.before-backup-exclusion.*.json
 logs/
 ELLIPSIS-Phase*-Source-Bundle.txt
+
+supabase/.temp/
