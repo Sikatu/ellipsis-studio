@@ -404,7 +404,7 @@ export default async function ProjectDetailPage({
             href="/admin/projects"
             className="text-[9px] font-semibold uppercase tracking-[0.13em] text-white/30 transition hover:text-white/60"
           >
-            Ã¢â€ Â Projects
+            ÃƒÂ¢Ã¢â‚¬Â Ã‚Â Projects
           </Link>
 
           {client && (
