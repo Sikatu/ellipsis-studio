@@ -4,6 +4,7 @@ import {
   redirect,
 } from "next/navigation";
 
+import ProjectDeliverablesPanel from "@/components/admin/ProjectDeliverablesPanel";
 import ProjectWorkboard from "@/components/admin/ProjectWorkboard";
 import ProjectWorkspaceEditor from "@/components/admin/ProjectWorkspaceEditor";
 import StudioNav from "@/components/admin/StudioNav";
@@ -205,6 +206,7 @@ export default async function ProjectDetailPage({
     invoicesResult,
     tasksResult,
     milestonesResult,
+    deliverablesResult,
     membersResult,
   ] =
     await Promise.all([
@@ -310,6 +312,32 @@ export default async function ProjectDetailPage({
 
       supabase
         .from(
+          "studio_project_deliverables",
+        )
+        .select(
+          "id,project_id,created_by,title,description,deliverable_type,source_kind,version_number,review_status,approval_status,external_url,storage_bucket,storage_path,filename,mime_type,byte_size,sha256,approved_at,delivered_at,sort_order,created_at,updated_at",
+        )
+        .eq(
+          "project_id",
+          project.id,
+        )
+        .order(
+          "sort_order",
+          {
+            ascending:
+              true,
+          },
+        )
+        .order(
+          "created_at",
+          {
+            ascending:
+              true,
+          },
+        ),
+
+      supabase
+        .from(
           "workspace_members",
         )
         .select(
@@ -330,6 +358,7 @@ export default async function ProjectDetailPage({
     invoicesResult.error ||
     tasksResult.error ||
     milestonesResult.error ||
+    deliverablesResult.error ||
     membersResult.error;
 
   if (firstError) {
@@ -357,6 +386,10 @@ export default async function ProjectDetailPage({
     milestonesResult.data ??
     [];
 
+  const deliverables =
+    deliverablesResult.data ??
+    [];
+
   const workspaceMembers =
     membersResult.data ??
     [];
@@ -371,7 +404,7 @@ export default async function ProjectDetailPage({
             href="/admin/projects"
             className="text-[9px] font-semibold uppercase tracking-[0.13em] text-white/30 transition hover:text-white/60"
           >
-            â† Projects
+            {"\u2190"} Projects
           </Link>
 
           {client && (
@@ -684,56 +717,36 @@ export default async function ProjectDetailPage({
           }
         />
 
-        <section className="mt-10 grid gap-4 md:grid-cols-2">
-          {[
-            {
-              title:
-                "Deliverables",
-              phase:
-                "S12.4",
-              description:
-                "Tracked files, URLs, versions, review states, and approvals will live here.",
-            },
-            {
-              title:
-                "Activity",
-              phase:
-                "S12.5",
-              description:
-                "Append-oriented project events and operational history will live here.",
-            },
-          ].map(
-            (
-              module,
-            ) => (
-              <article
-                key={
-                  module.title
-                }
-                className="rounded-2xl border border-dashed border-white/[0.09] p-6"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-lg font-medium">
-                    {
-                      module.title
-                    }
-                  </h2>
+        <ProjectDeliverablesPanel
+          projectId={
+            project.id
+          }
+          archived={
+            Boolean(
+              project.archived_at,
+            )
+          }
+          initialDeliverables={
+            deliverables
+          }
+        />
 
-                  <span className="rounded-full border border-white/[0.08] px-3 py-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-white/25">
-                    {
-                      module.phase
-                    }
-                  </span>
-                </div>
+        <section className="mt-10">
+          <article className="rounded-2xl border border-dashed border-white/[0.09] p-6">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-lg font-medium">
+                Activity
+              </h2>
 
-                <p className="mt-4 text-sm leading-6 text-white/30">
-                  {
-                    module.description
-                  }
-                </p>
-              </article>
-            ),
-          )}
+              <span className="rounded-full border border-white/[0.08] px-3 py-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-white/25">
+                S12.5
+              </span>
+            </div>
+
+            <p className="mt-4 text-sm leading-6 text-white/30">
+              Append-oriented project events and operational history will live here.
+            </p>
+          </article>
         </section>
       </div>
     </main>
