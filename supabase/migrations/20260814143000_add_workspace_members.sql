@@ -168,43 +168,6 @@ for each row
 execute function
   private.set_updated_at();
 
--- Prevent the canonical Owner workspace identity from
--- being deleted while the legacy Owner profile still exists.
---
--- The admin_profiles de-synchronization triggers remain able
--- to delete the row after the Owner profile is demoted or removed.
-
-create or replace function
-  private.protect_workspace_owner_delete()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  if old.role = 'owner'
-     and exists (
-       select 1
-       from public.admin_profiles ap
-       where ap.user_id =
-         old.user_id
-         and ap.role =
-           'owner'
-     ) then
-    raise exception
-      'Workspace Owner cannot be deleted while the Owner admin profile exists.';
-  end if;
-
-  return old;
-end;
-$$;
-
-create trigger
-  workspace_members_protect_owner_delete
-before delete
-on public.workspace_members
-for each row
-execute function
-  private.protect_workspace_owner_delete();
 -- Keep future Owner creation synchronized with the
 -- canonical workspace identity layer.
 --
@@ -290,66 +253,6 @@ when (
 )
 execute function
   private.sync_workspace_owner_from_admin_profile();
--- Remove stale workspace Owner identity if the corresponding
--- legacy Owner profile is demoted or deleted.
---
--- This keeps admin_profiles and workspace_members from
--- disagreeing about who holds Owner authority.
-
-create or replace function
-  private.unsync_workspace_owner_from_admin_profile()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  if tg_op = 'DELETE' then
-    if old.role = 'owner' then
-      delete from public.workspace_members
-      where user_id =
-        old.user_id
-        and role =
-          'owner';
-    end if;
-
-    return old;
-  end if;
-
-  if old.role = 'owner'
-     and new.role <> 'owner' then
-    delete from public.workspace_members
-    where user_id =
-      old.user_id
-      and role =
-        'owner';
-  end if;
-
-  return new;
-end;
-$$;
-
-create trigger
-  admin_profiles_unsync_workspace_owner_on_role_change
-after update of role
-on public.admin_profiles
-for each row
-when (
-  old.role = 'owner'
-  and new.role <> 'owner'
-)
-execute function
-  private.unsync_workspace_owner_from_admin_profile();
-
-create trigger
-  admin_profiles_unsync_workspace_owner_on_delete
-after delete
-on public.admin_profiles
-for each row
-when (
-  old.role = 'owner'
-)
-execute function
-  private.unsync_workspace_owner_from_admin_profile();
 -- Remove stale workspace Owner identity if the corresponding
 -- legacy Owner profile is demoted or deleted.
 --
@@ -508,13 +411,6 @@ grant execute
   on function private.validate_workspace_member_write()
   to service_role;
 
-revoke execute
-  on function private.protect_workspace_owner_delete()
-  from public, anon, authenticated;
-
-grant execute
-  on function private.protect_workspace_owner_delete()
-  to service_role;
 
 revoke execute
   on function private.sync_workspace_owner_from_admin_profile()
@@ -532,10 +428,3 @@ grant execute
   on function private.unsync_workspace_owner_from_admin_profile()
   to service_role;
 
-revoke execute
-  on function private.unsync_workspace_owner_from_admin_profile()
-  from public, anon, authenticated;
-
-grant execute
-  on function private.unsync_workspace_owner_from_admin_profile()
-  to service_role;
