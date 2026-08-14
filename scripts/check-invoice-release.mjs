@@ -162,6 +162,42 @@ check(
 );
 
 check(
+  "live production email requires canonical public origin",
+  email.includes(
+    "canonicalProductionAppUrl",
+  ) &&
+  email.includes(
+    "https://ellipsissmp.com",
+  ) &&
+  email.includes(
+    "livePublicAppUrlAllowed",
+  ),
+);
+
+check(
+  "webhook readiness validates signing secret",
+  email.includes(
+    "function webhookSecretConfigured()",
+  ) &&
+  email.includes(
+    ".RESEND_WEBHOOK_SECRET",
+  ) &&
+  email.includes(
+    '"base64"',
+  ) &&
+  email.includes(
+    "secret.length >=",
+  ),
+);
+
+check(
+  "readiness exposes canonical public origin status",
+  readiness.includes(
+    "livePublicAppUrlAllowed",
+  ),
+);
+
+check(
   "readiness endpoint is authenticated",
   readiness.includes(
     "timingSafeEqual",

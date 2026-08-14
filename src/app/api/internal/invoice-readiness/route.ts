@@ -205,6 +205,8 @@ export async function GET(
           provider.publicAppUrlConfigured,
         liveDeploymentAllowed:
           provider.liveDeploymentAllowed,
+        livePublicAppUrlAllowed:
+          provider.livePublicAppUrlAllowed,
         webhookConfigured:
           provider.webhookConfigured,
       },

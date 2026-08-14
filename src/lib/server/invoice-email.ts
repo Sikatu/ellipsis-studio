@@ -288,6 +288,66 @@ function normalizeBaseUrl(
   }
 }
 
+const canonicalProductionAppUrl =
+  "https://ellipsissmp.com";
+
+function webhookSecretConfigured() {
+  const configured =
+    (
+      process.env
+        .RESEND_WEBHOOK_SECRET ??
+      ""
+    ).trim();
+
+  if (
+    !configured.startsWith(
+      "whsec_",
+    ) ||
+    /\\s/.test(
+      configured,
+    )
+  ) {
+    return false;
+  }
+
+  const encoded =
+    configured.slice(
+      "whsec_".length,
+    );
+
+  if (
+    !/^[A-Za-z0-9_-]+$/.test(
+      encoded,
+    )
+  ) {
+    return false;
+  }
+
+  try {
+    const normalized =
+      encoded
+        .replaceAll(
+          "-",
+          "+",
+        )
+        .replaceAll(
+          "_",
+          "/",
+        );
+
+    const secret =
+      Buffer.from(
+        normalized,
+        "base64",
+      );
+
+    return secret.length >=
+      16;
+  } catch {
+    return false;
+  }
+}
+
 function envFlag(
   value: string | undefined,
 ) {
@@ -385,14 +445,16 @@ export function getInvoiceEmailProviderStatus() {
     environment ===
       "production";
 
+  const livePublicAppUrlAllowed =
+    mode !==
+      "live" ||
+    environment !==
+      "production" ||
+    publicAppUrl ===
+      canonicalProductionAppUrl;
+
   const webhookConfigured =
-    Boolean(
-      (
-        process.env
-          .RESEND_WEBHOOK_SECRET ??
-        ""
-      ).trim(),
-    );
+    webhookSecretConfigured();
 
   const automationEnabled =
     envFlag(
@@ -480,6 +542,18 @@ export function getInvoiceEmailProviderStatus() {
   }
 
   if (
+    mode === "live" &&
+    environment ===
+      "production" &&
+    publicAppUrl &&
+    !livePublicAppUrlAllowed
+  ) {
+    missingConfiguration.push(
+      `ELLIPSIS_PUBLIC_APP_URL=${canonicalProductionAppUrl}`,
+    );
+  }
+
+  if (
     automationEnabled &&
     !automationSecret
   ) {
@@ -503,6 +577,7 @@ export function getInvoiceEmailProviderStatus() {
       publicAppUrl,
     ) &&
     liveDeploymentAllowed &&
+    livePublicAppUrlAllowed &&
     (
       (
         mode === "sandbox" &&
@@ -527,6 +602,7 @@ export function getInvoiceEmailProviderStatus() {
     mode ===
       "live" &&
     liveDeploymentAllowed &&
+    livePublicAppUrlAllowed &&
     sendingEnabled &&
     webhookConfigured &&
     automationRunnerReady;
@@ -545,6 +621,7 @@ export function getInvoiceEmailProviderStatus() {
     deploymentEnvironment:
       environment,
     liveDeploymentAllowed,
+    livePublicAppUrlAllowed,
     webhookConfigured,
     automationEnabled,
     automationSecretConfigured:
