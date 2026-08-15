@@ -4,6 +4,7 @@ import {
   redirect,
 } from "next/navigation";
 
+import ProjectActivityTimeline from "@/components/admin/ProjectActivityTimeline";
 import ProjectDeliverablesPanel from "@/components/admin/ProjectDeliverablesPanel";
 import ProjectWorkboard from "@/components/admin/ProjectWorkboard";
 import ProjectWorkspaceEditor from "@/components/admin/ProjectWorkspaceEditor";
@@ -207,6 +208,7 @@ export default async function ProjectDetailPage({
     tasksResult,
     milestonesResult,
     deliverablesResult,
+    activityResult,
     membersResult,
   ] =
     await Promise.all([
@@ -338,10 +340,38 @@ export default async function ProjectDetailPage({
 
       supabase
         .from(
+          "studio_project_activity_events",
+        )
+        .select(
+          "id,project_id,actor_user_id,actor_role,event_type,entity_type,entity_id,summary,metadata,occurred_at,created_at",
+        )
+        .eq(
+          "project_id",
+          project.id,
+        )
+        .order(
+          "occurred_at",
+          {
+            ascending:
+              false,
+          },
+        )
+        .order(
+          "created_at",
+          {
+            ascending:
+              false,
+          },
+        )
+        .limit(
+          200,
+        ),
+      supabase
+        .from(
           "workspace_members",
         )
         .select(
-          "id,display_name,role,status",
+          "id,user_id,display_name,role,status",
         )
         .order(
           "display_name",
@@ -359,6 +389,7 @@ export default async function ProjectDetailPage({
     tasksResult.error ||
     milestonesResult.error ||
     deliverablesResult.error ||
+    activityResult.error ||
     membersResult.error;
 
   if (firstError) {
@@ -388,6 +419,10 @@ export default async function ProjectDetailPage({
 
   const deliverables =
     deliverablesResult.data ??
+    [];
+
+  const activityEvents =
+    activityResult.data ??
     [];
 
   const workspaceMembers =
@@ -731,23 +766,23 @@ export default async function ProjectDetailPage({
           }
         />
 
-        <section className="mt-10">
-          <article className="rounded-2xl border border-dashed border-white/[0.09] p-6">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-medium">
-                Activity
-              </h2>
-
-              <span className="rounded-full border border-white/[0.08] px-3 py-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-white/25">
-                S12.5
-              </span>
-            </div>
-
-            <p className="mt-4 text-sm leading-6 text-white/30">
-              Append-oriented project events and operational history will live here.
-            </p>
-          </article>
-        </section>
+        <ProjectActivityTimeline
+          key={`${project.id}:${activityEvents[0]?.id ?? "empty"}:${activityEvents.length}`}
+          projectId={
+            project.id
+          }
+          archived={
+            Boolean(
+              project.archived_at,
+            )
+          }
+          initialEvents={
+            activityEvents
+          }
+          members={
+            workspaceMembers
+          }
+        />
       </div>
     </main>
   );
