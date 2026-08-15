@@ -1,6 +1,9 @@
 import {
   createAdminClient,
 } from "@/lib/supabase/admin";
+import {
+  appendProjectActivityBestEffort,
+} from "@/lib/server/project-activity";
 
 import {
   authenticatedOwner,
@@ -383,6 +386,162 @@ export async function PUT(
     );
   }
 
+  const changedFields =
+    [
+      current.title !==
+        deliverable.title
+        ? "title"
+        : null,
+      current.description !==
+        deliverable.description
+        ? "description"
+        : null,
+      current.deliverable_type !==
+        deliverable.deliverable_type
+        ? "deliverable_type"
+        : null,
+      current.version_number !==
+        deliverable.version_number
+        ? "version_number"
+        : null,
+      current.review_status !==
+        deliverable.review_status
+        ? "review_status"
+        : null,
+      current.external_url !==
+        deliverable.external_url
+        ? "external_url"
+        : null,
+      current.sort_order !==
+        deliverable.sort_order
+        ? "sort_order"
+        : null,
+    ].filter(
+      (value): value is string =>
+        Boolean(value),
+    );
+
+  if (
+    changedFields.length > 0
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "deliverable_updated",
+        entityType:
+          "deliverable",
+        entityId:
+          deliverable.id,
+        summary:
+          `Deliverable updated: ${deliverable.title}`,
+        metadata: {
+          changedFields,
+          previousVersionNumber:
+            current.version_number,
+          versionNumber:
+            deliverable.version_number,
+          previousReviewStatus:
+            current.review_status,
+          reviewStatus:
+            deliverable.review_status,
+        },
+      },
+    );
+  }
+
+  if (
+    current.approval_status !==
+      deliverable.approval_status
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "deliverable_approval_changed",
+        entityType:
+          "deliverable",
+        entityId:
+          deliverable.id,
+        summary:
+          `Deliverable approval changed from ${current.approval_status} to ${deliverable.approval_status}: ${deliverable.title}`,
+        metadata: {
+          previousApprovalStatus:
+            current.approval_status,
+          approvalStatus:
+            deliverable.approval_status,
+          approvedAt:
+            deliverable.approved_at,
+        },
+      },
+    );
+  }
+
+  if (
+    !current.delivered_at &&
+    deliverable.delivered_at
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "deliverable_delivered",
+        entityType:
+          "deliverable",
+        entityId:
+          deliverable.id,
+        summary:
+          `Deliverable marked delivered: ${deliverable.title}`,
+        metadata: {
+          deliveredAt:
+            deliverable.delivered_at,
+        },
+      },
+    );
+  }
+
+  if (
+    current.delivered_at &&
+    !deliverable.delivered_at
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "deliverable_delivery_reopened",
+        entityType:
+          "deliverable",
+        entityId:
+          deliverable.id,
+        summary:
+          `Deliverable delivery reopened: ${deliverable.title}`,
+        metadata: {
+          previousDeliveredAt:
+            current.delivered_at,
+        },
+      },
+    );
+  }
   return jsonSuccess({
     deliverable,
   });

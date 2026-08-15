@@ -2,6 +2,9 @@ import {
   createAdminClient,
 } from "@/lib/supabase/admin";
 import {
+  appendProjectActivityBestEffort,
+} from "@/lib/server/project-activity";
+import {
   authenticatedOwner,
   dateValue,
   integerValue,
@@ -258,6 +261,61 @@ export async function PUT(
     );
   }
 
+  if (
+    !currentMilestone.completed_at &&
+    milestone.completed_at
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "milestone_completed",
+        entityType:
+          "milestone",
+        entityId:
+          milestone.id,
+        summary:
+          `Milestone completed: ${milestone.title}`,
+        metadata: {
+          completedAt:
+            milestone.completed_at,
+        },
+      },
+    );
+  }
+
+  if (
+    currentMilestone.completed_at &&
+    !milestone.completed_at
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "milestone_reopened",
+        entityType:
+          "milestone",
+        entityId:
+          milestone.id,
+        summary:
+          `Milestone reopened: ${milestone.title}`,
+        metadata: {
+          previousCompletedAt:
+            currentMilestone.completed_at,
+        },
+      },
+    );
+  }
   return jsonSuccess({
     milestone,
   });

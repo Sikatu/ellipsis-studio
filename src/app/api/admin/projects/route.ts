@@ -2,6 +2,9 @@ import {
   createAdminClient,
 } from "@/lib/supabase/admin";
 import {
+  appendProjectActivityBestEffort,
+} from "@/lib/server/project-activity";
+import {
   createClient,
 } from "@/lib/supabase/server";
 
@@ -644,6 +647,33 @@ export async function POST(
     );
   }
 
+  await appendProjectActivityBestEffort(
+    admin,
+    {
+      projectId:
+        project.id,
+      actorUserId:
+        user.id,
+      actorRole:
+        "owner",
+      eventType:
+        "project_created",
+      entityType:
+        "project",
+      entityId:
+        project.id,
+      summary:
+        `Project created: ${project.title}`,
+      metadata: {
+        clientId:
+          project.client_id,
+        status:
+          project.status,
+        priority:
+          project.priority,
+      },
+    },
+  );
   return Response.json(
     {
       project,

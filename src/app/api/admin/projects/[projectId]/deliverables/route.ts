@@ -1,6 +1,9 @@
 import {
   createAdminClient,
 } from "@/lib/supabase/admin";
+import {
+  appendProjectActivityBestEffort,
+} from "@/lib/server/project-activity";
 
 import {
   authenticatedOwner,
@@ -383,6 +386,36 @@ export async function POST(
       );
     }
 
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "deliverable_created",
+        entityType:
+          "deliverable",
+        entityId:
+          deliverable.id,
+        summary:
+          `Deliverable created: ${deliverable.title}`,
+        metadata: {
+          sourceKind:
+            deliverable.source_kind,
+          versionNumber:
+            deliverable.version_number,
+          reviewStatus:
+            deliverable.review_status,
+          approvalStatus:
+            deliverable.approval_status,
+          deliveredAt:
+            deliverable.delivered_at,
+        },
+      },
+    );
     return jsonSuccess(
       {
         deliverable,
@@ -580,6 +613,36 @@ export async function POST(
     );
   }
 
+  await appendProjectActivityBestEffort(
+    admin,
+    {
+      projectId,
+      actorUserId:
+        user.id,
+      actorRole:
+        "owner",
+      eventType:
+        "deliverable_created",
+      entityType:
+        "deliverable",
+      entityId:
+        deliverable.id,
+      summary:
+        `Deliverable created: ${deliverable.title}`,
+      metadata: {
+        sourceKind:
+          deliverable.source_kind,
+        versionNumber:
+          deliverable.version_number,
+        reviewStatus:
+          deliverable.review_status,
+        approvalStatus:
+          deliverable.approval_status,
+        deliveredAt:
+          deliverable.delivered_at,
+      },
+    },
+  );
   return jsonSuccess(
     {
       deliverable,

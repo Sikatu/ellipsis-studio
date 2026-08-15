@@ -2,6 +2,9 @@ import {
   createAdminClient,
 } from "@/lib/supabase/admin";
 import {
+  appendProjectActivityBestEffort,
+} from "@/lib/server/project-activity";
+import {
   createClient,
 } from "@/lib/supabase/server";
 
@@ -568,6 +571,94 @@ export async function PUT(
     );
   }
 
+  if (
+    currentProject.status !==
+      project.status
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId:
+          project.id,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "project_status_changed",
+        entityType:
+          "project",
+        entityId:
+          project.id,
+        summary:
+          `Project status changed from ${currentProject.status} to ${project.status}.`,
+        metadata: {
+          previousStatus:
+            currentProject.status,
+          status:
+            project.status,
+        },
+      },
+    );
+  }
+
+  if (
+    !currentProject.archived_at &&
+    project.archived_at
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId:
+          project.id,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "project_archived",
+        entityType:
+          "project",
+        entityId:
+          project.id,
+        summary:
+          "Project archived.",
+        metadata: {
+          archivedAt:
+            project.archived_at,
+        },
+      },
+    );
+  }
+
+  if (
+    currentProject.archived_at &&
+    !project.archived_at
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId:
+          project.id,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "project_restored",
+        entityType:
+          "project",
+        entityId:
+          project.id,
+        summary:
+          "Project restored.",
+        metadata: {
+          previousArchivedAt:
+            currentProject.archived_at,
+        },
+      },
+    );
+  }
   return Response.json(
     {
       project,

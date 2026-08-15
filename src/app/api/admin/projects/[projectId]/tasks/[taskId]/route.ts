@@ -2,6 +2,9 @@ import {
   createAdminClient,
 } from "@/lib/supabase/admin";
 import {
+  appendProjectActivityBestEffort,
+} from "@/lib/server/project-activity";
+import {
   activeWorkspaceMember,
   authenticatedOwner,
   dateValue,
@@ -356,6 +359,71 @@ export async function PUT(
     );
   }
 
+  if (
+    currentTask.status !==
+      "completed" &&
+    task.status ===
+      "completed"
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "task_completed",
+        entityType:
+          "task",
+        entityId:
+          task.id,
+        summary:
+          `Task completed: ${task.title}`,
+        metadata: {
+          previousStatus:
+            currentTask.status,
+          status:
+            task.status,
+          completedAt:
+            task.completed_at,
+        },
+      },
+    );
+  }
+
+  if (
+    currentTask.status ===
+      "completed" &&
+    task.status !==
+      "completed"
+  ) {
+    await appendProjectActivityBestEffort(
+      admin,
+      {
+        projectId,
+        actorUserId:
+          user.id,
+        actorRole:
+          "owner",
+        eventType:
+          "task_reopened",
+        entityType:
+          "task",
+        entityId:
+          task.id,
+        summary:
+          `Task reopened: ${task.title}`,
+        metadata: {
+          previousStatus:
+            currentTask.status,
+          status:
+            task.status,
+        },
+      },
+    );
+  }
   return jsonSuccess({
     task,
   });
